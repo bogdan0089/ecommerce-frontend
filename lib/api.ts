@@ -167,6 +167,13 @@ export async function changePassword(old_password: string, new_password: string)
   });
 }
 
+export async function createPaymentIntent(amount: number): Promise<{ client_secret: string }> {
+  return authFetch("/payment/create", {
+    method: "POST",
+    body: JSON.stringify({ amount }),
+  });
+}
+
 export async function getProduct(id: number): Promise<Product> {
   return authFetch(`/product/${id}`);
 }
