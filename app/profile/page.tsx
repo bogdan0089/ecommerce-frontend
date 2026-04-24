@@ -2,7 +2,57 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authFetch, logout, getMyStats, depositBalance, changePassword, ClientStats } from "@/lib/api";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { authFetch, logout, getMyStats, changePassword, createPaymentIntent, ClientStats } from "@/lib/api";
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY!);
+
+function PaymentForm({ clientSecret, amount, onSuccess }: { clientSecret: string; amount: number; onSuccess: () => void }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setLoading(true);
+    setError("");
+    const result = await stripe.confirmCardPayment(clientSecret, {
+      payment_method: { card: elements.getElement(CardElement)! },
+    });
+    if (result.error) {
+      setError(result.error.message || "Payment failed");
+      setLoading(false);
+    } else {
+      onSuccess();
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div>
+        <p style={{ color: "#444", fontSize: "10px", letterSpacing: "2px", marginBottom: "8px" }}>CARD DETAILS</p>
+        <div style={{ backgroundColor: "#0d0d0d", border: "1px solid #1f1f1f", padding: "14px 16px", borderRadius: "2px" }}>
+          <CardElement options={{ style: { base: { color: "#fff", fontSize: "14px", "::placeholder": { color: "#333" } }, invalid: { color: "#dc2626" } } }} />
+        </div>
+      </div>
+      {error && (
+        <div style={{ backgroundColor: "#dc262610", border: "1px solid #dc262640", color: "#dc2626", padding: "12px 16px", borderRadius: "2px", fontSize: "13px" }}>
+          {error}
+        </div>
+      )}
+      <button
+        type="submit"
+        disabled={loading || !stripe}
+        style={{ backgroundColor: loading ? "#111" : "#fff", color: loading ? "#333" : "#000", border: loading ? "1px solid #1f1f1f" : "none", padding: "14px", cursor: loading ? "not-allowed" : "pointer", fontWeight: "800", fontSize: "11px", letterSpacing: "3px", borderRadius: "2px" }}
+      >
+        {loading ? "PROCESSING..." : `PAY $${amount.toFixed(2)}`}
+      </button>
+    </form>
+  );
+}
 
 interface Client {
   id: number;
@@ -37,6 +87,7 @@ export default function ProfilePage() {
   const [depositLoading, setDepositLoading] = useState(false);
   const [depositError, setDepositError] = useState("");
   const [depositSuccess, setDepositSuccess] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [pwForm, setPwForm] = useState({ old_password: "", new_password: "", confirm: "" });
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState("");
@@ -80,7 +131,6 @@ export default function ProfilePage() {
 
   async function handleDeposit(e: { preventDefault(): void }) {
     e.preventDefault();
-    if (!client) return;
     const amount = parseFloat(depositAmount);
     if (!amount || amount <= 0) {
       setDepositError("Enter a valid amount");
@@ -88,18 +138,24 @@ export default function ProfilePage() {
     }
     setDepositLoading(true);
     setDepositError("");
-    setDepositSuccess(false);
     try {
-      const updated = await depositBalance(client.id, amount);
-      setClient((prev) => prev ? { ...prev, balance: updated.balance } : prev);
-      setDepositAmount("");
-      setDepositSuccess(true);
-      setTimeout(() => setDepositSuccess(false), 3000);
+      const data = await createPaymentIntent(amount);
+      setClientSecret(data.client_secret);
     } catch (err: unknown) {
       setDepositError(err instanceof Error ? err.message : "Error");
     } finally {
       setDepositLoading(false);
     }
+  }
+
+  function handlePaymentSuccess() {
+    setDepositSuccess(true);
+    setClientSecret(null);
+    setDepositAmount("");
+    setTimeout(() => {
+      authFetch("/client/me").then((me) => setClient(me)).catch(() => {});
+      setDepositSuccess(false);
+    }, 3000);
   }
 
   if (loading) {
@@ -255,7 +311,7 @@ export default function ProfilePage() {
 
             {depositSuccess && (
               <div style={{ backgroundColor: "#16a34a15", border: "1px solid #16a34a30", color: "#16a34a", padding: "12px 16px", borderRadius: "2px", marginBottom: "16px", fontSize: "13px" }}>
-                Balance updated successfully!
+                Payment successful! Balance will update shortly.
               </div>
             )}
 
@@ -265,38 +321,48 @@ export default function ProfilePage() {
               </div>
             )}
 
-            <form onSubmit={handleDeposit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {!clientSecret ? (
+              <form onSubmit={handleDeposit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div>
+                  <p style={{ color: "#444", fontSize: "10px", letterSpacing: "2px", marginBottom: "8px" }}>AMOUNT ($)</p>
+                  <input
+                    type="number"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    min="1"
+                    step="0.01"
+                    placeholder="0.00"
+                    required
+                    style={{ width: "100%", backgroundColor: "#0d0d0d", border: "1px solid #1f1f1f", color: "#fff", padding: "14px 16px", fontSize: "14px", borderRadius: "2px", outline: "none" }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {[10, 25, 50, 100].map((amt) => (
+                    <button key={amt} type="button" onClick={() => setDepositAmount(String(amt))}
+                      style={{ background: "none", border: "1px solid #222", color: "#555", padding: "8px 16px", cursor: "pointer", fontSize: "12px", borderRadius: "2px" }}>
+                      ${amt}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="submit"
+                  disabled={depositLoading}
+                  style={{ backgroundColor: depositLoading ? "#111" : "#fff", color: depositLoading ? "#333" : "#000", border: depositLoading ? "1px solid #1f1f1f" : "none", padding: "14px", cursor: depositLoading ? "not-allowed" : "pointer", fontWeight: "800", fontSize: "11px", letterSpacing: "3px", borderRadius: "2px" }}
+                >
+                  {depositLoading ? "PROCESSING..." : "CONTINUE TO PAYMENT"}
+                </button>
+              </form>
+            ) : (
               <div>
-                <p style={{ color: "#444", fontSize: "10px", letterSpacing: "2px", marginBottom: "8px" }}>AMOUNT ($)</p>
-                <input
-                  type="number"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  min="1"
-                  step="0.01"
-                  placeholder="0.00"
-                  required
-                  style={{ width: "100%", backgroundColor: "#0d0d0d", border: "1px solid #1f1f1f", color: "#fff", padding: "14px 16px", fontSize: "14px", borderRadius: "2px", outline: "none" }}
-                />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                  <span style={{ color: "#444", fontSize: "13px" }}>Amount: <strong style={{ color: "#fff" }}>${parseFloat(depositAmount).toFixed(2)}</strong></span>
+                  <button onClick={() => setClientSecret(null)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: "12px", letterSpacing: "1px" }}>← Back</button>
+                </div>
+                <Elements stripe={stripePromise}>
+                  <PaymentForm clientSecret={clientSecret} amount={parseFloat(depositAmount)} onSuccess={handlePaymentSuccess} />
+                </Elements>
               </div>
-
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                {[10, 25, 50, 100].map((amt) => (
-                  <button key={amt} type="button" onClick={() => setDepositAmount(String(amt))}
-                    style={{ background: "none", border: "1px solid #222", color: "#555", padding: "8px 16px", cursor: "pointer", fontSize: "12px", borderRadius: "2px" }}>
-                    ${amt}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                type="submit"
-                disabled={depositLoading}
-                style={{ backgroundColor: depositLoading ? "#111" : "#fff", color: depositLoading ? "#333" : "#000", border: depositLoading ? "1px solid #1f1f1f" : "none", padding: "14px", cursor: depositLoading ? "not-allowed" : "pointer", fontWeight: "800", fontSize: "11px", letterSpacing: "3px", borderRadius: "2px" }}
-              >
-                {depositLoading ? "PROCESSING..." : "ADD FUNDS"}
-              </button>
-            </form>
+            )}
           </div>
         )}
 
