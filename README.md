@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# E-Commerce Frontend
 
-## Getting Started
+**Modern e-commerce storefront** built with Next.js 16 and TypeScript, connected to a [FastAPI backend](https://github.com/bogdan0089/fastapi-ecommerce-backend).
 
-First, run the development server:
+**Live demo:** https://bohdan-shop.duckdns.org  
+**Backend repo:** https://github.com/bogdan0089/fastapi-ecommerce-backend
 
+---
+
+## Features
+
+- JWT authentication (login, register, email verification, forgot/reset password)
+- Product catalog with search, category filter, and price range
+- Product detail page with quantity selector and add to cart
+- Cart with localStorage persistence and checkout via account balance
+- User profile with stats (total orders, total spent, balance), deposit form, transaction history, and password change
+- Admin panel — product management with approve/reject/delete and status filtering
+- Fully dark UI with smooth animations
+
+---
+
+## Pages
+
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page |
+| `/login` | Login |
+| `/register` | Registration |
+| `/forgot-password` | Forgot password |
+| `/reset-password` | Reset password via token |
+| `/auth/verify/[token]` | Email verification |
+| `/products` | Product catalog |
+| `/products/[id]` | Product detail |
+| `/cart` | Shopping cart |
+| `/checkout` | Order checkout |
+| `/profile` | User profile, stats, deposit, transactions |
+| `/transactions` | Transaction history |
+| `/admin` | Admin panel (superadmin / moderator only) |
+
+---
+
+## Technologies
+
+- Next.js 16 (App Router)
+- TypeScript
+- JWT auth via localStorage
+- Fetch API for all requests
+- PM2 (production process manager)
+- Nginx (reverse proxy)
+- Let's Encrypt SSL
+
+---
+
+## How to Run
+
+1. **Clone the repository**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/bogdan0089/ecommerce-frontend.git
+cd ecommerce-frontend
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Install dependencies**
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. **Set the API URL** in `lib/api.ts`:
+```ts
+const API_URL = "http://localhost:8000";
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. **Run development server**
+```bash
+npm run dev
+```
 
-## Learn More
+App available at: `http://localhost:3000`
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> Requires the [FastAPI backend](https://github.com/bogdan0089/fastapi-ecommerce-backend) running on port 8000.
