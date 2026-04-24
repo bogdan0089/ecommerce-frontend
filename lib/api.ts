@@ -1,4 +1,4 @@
-const API_URL = "http://18.199.147.48/api";
+const API_URL = "https://bohdan-shop.duckdns.org/api";
 
 
 export interface Product {
