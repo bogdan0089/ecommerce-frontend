@@ -190,6 +190,18 @@ export async function moderateProduct(id: number, status: "accept" | "rejected")
   return authFetch(`/product/${id}/moderate`, { method: "PATCH", body: JSON.stringify({ status }) });
 }
 
+export async function getAdminOrders(limit = 100, offset = 0): Promise<Order[]> {
+  return authFetch(`/order/get_orders?limit=${limit}&offset=${offset}`);
+}
+
+export async function getAdminClients(limit = 100, offset = 0): Promise<Client[]> {
+  return authFetch(`/client/get_clients?limit=${limit}&offset=${offset}`);
+}
+
+export async function updateOrderStatus(orderId: number, status: string): Promise<Order> {
+  return authFetch(`/order/${orderId}/status`, { method: "PUT", body: JSON.stringify({ status }) });
+}
+
 export async function createOrder(title: string): Promise<Order> {
   return authFetch("/order/create_orders", { method: "POST", body: JSON.stringify({ title }) });
 }

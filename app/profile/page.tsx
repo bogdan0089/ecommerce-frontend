@@ -152,10 +152,6 @@ export default function ProfilePage() {
     setDepositSuccess(true);
     setClientSecret(null);
     setDepositAmount("");
-    setTimeout(() => {
-      authFetch("/client/me").then((me) => setClient(me)).catch(() => {});
-      setDepositSuccess(false);
-    }, 3000);
   }
 
   if (loading) {
@@ -311,7 +307,7 @@ export default function ProfilePage() {
 
             {depositSuccess && (
               <div style={{ backgroundColor: "#16a34a15", border: "1px solid #16a34a30", color: "#16a34a", padding: "12px 16px", borderRadius: "2px", marginBottom: "16px", fontSize: "13px" }}>
-                Payment successful! Balance will update shortly.
+                Payment successful! Refresh the page to see your updated balance.
               </div>
             )}
 
