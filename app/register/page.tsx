@@ -28,32 +28,20 @@ export default function RegisterPage() {
     }
   }
 
-  const inputStyle = {
-    width: "100%",
-    backgroundColor: "#0d0d0d",
-    border: "1px solid #1f1f1f",
-    color: "#fff",
-    padding: "14px 16px",
-    fontSize: "14px",
-    borderRadius: "2px",
-    outline: "none",
-  };
-
   if (success) {
     return (
-      <div style={{ minHeight: "100vh", backgroundColor: "#080808", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-        <a href="/" style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px", color: "#fff", textDecoration: "none", marginBottom: "56px" }}>SHOP</a>
-        <div style={{ textAlign: "center", maxWidth: "400px" }}>
-          <div style={{ width: "64px", height: "64px", borderRadius: "50%", backgroundColor: "#16a34a20", border: "1px solid #16a34a40", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 32px" }}>
-            <span style={{ color: "#16a34a", fontSize: "28px" }}>✓</span>
+      <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
+        <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</a>
+        <div style={{ textAlign: "center", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "48px 40px" }}>
+          <div style={{ width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
+            <span style={{ color: "#16a34a", fontSize: "24px" }}>✓</span>
           </div>
-          <p style={{ color: "#444", fontSize: "11px", letterSpacing: "3px", marginBottom: "12px" }}>CHECK YOUR EMAIL</p>
-          <h1 style={{ fontSize: "28px", fontWeight: "800", letterSpacing: "-1px", marginBottom: "12px" }}>Almost there!</h1>
-          <p style={{ color: "#555", fontSize: "14px", marginBottom: "40px" }}>
-            We sent a confirmation link to <strong style={{ color: "#fff" }}>{form.email}</strong>. Click it to activate your account.
+          <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#111", marginBottom: "8px" }}>Check your email</h1>
+          <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "32px" }}>
+            We sent a confirmation link to <strong style={{ color: "#111" }}>{form.email}</strong>. Click it to activate your account.
           </p>
-          <a href="/login" style={{ backgroundColor: "#fff", color: "#000", padding: "14px 40px", fontSize: "11px", letterSpacing: "3px", textDecoration: "none", fontWeight: "800", borderRadius: "2px" }}>
-            GO TO LOGIN
+          <a href="/login" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>
+            Go to login
           </a>
         </div>
       </div>
@@ -61,81 +49,55 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#080808", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-      <style>{`input::placeholder { color: #333; } input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }`}</style>
+    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
+      <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; } input:focus { border-color: #111 !important; outline: none; } input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }`}</style>
 
-      <a href="/" style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px", color: "#fff", textDecoration: "none", marginBottom: "56px" }}>SHOP</a>
+      <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</a>
 
-      <div style={{ width: "100%", maxWidth: "380px" }}>
-        <p style={{ color: "#444", fontSize: "11px", letterSpacing: "3px", marginBottom: "8px" }}>GET STARTED</p>
-        <h1 style={{ fontSize: "32px", fontWeight: "800", letterSpacing: "-1px", marginBottom: "40px" }}>Create account</h1>
+      <div style={{ width: "100%", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "40px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#111", marginBottom: "4px" }}>Create account</h1>
+        <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "32px" }}>Join us today</p>
 
         {error && (
-          <div style={{ backgroundColor: "#dc262610", border: "1px solid #dc262640", color: "#dc2626", padding: "12px 16px", borderRadius: "2px", marginBottom: "20px", fontSize: "13px" }}>
+          <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: "8px", marginBottom: "20px", fontSize: "13px" }}>
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div>
-            <p style={{ color: "#444", fontSize: "10px", letterSpacing: "2px", marginBottom: "8px" }}>FULL NAME</p>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-              placeholder="John Doe"
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <p style={{ color: "#444", fontSize: "10px", letterSpacing: "2px", marginBottom: "8px" }}>EMAIL</p>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-              placeholder="your@email.com"
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <p style={{ color: "#444", fontSize: "10px", letterSpacing: "2px", marginBottom: "8px" }}>PASSWORD</p>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required
-              placeholder="Min. 6 characters"
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <p style={{ color: "#444", fontSize: "10px", letterSpacing: "2px", marginBottom: "8px" }}>AGE</p>
-            <input
-              type="number"
-              value={form.age}
-              onChange={(e) => setForm({ ...form, age: e.target.value })}
-              required
-              min="1"
-              max="120"
-              placeholder="25"
-              style={inputStyle}
-            />
-          </div>
+          {[
+            { label: "Full name", key: "name", type: "text", placeholder: "John Doe" },
+            { label: "Email", key: "email", type: "email", placeholder: "your@email.com" },
+            { label: "Password", key: "password", type: "password", placeholder: "Min. 8 characters" },
+            { label: "Age", key: "age", type: "number", placeholder: "25" },
+          ].map((field) => (
+            <div key={field.key}>
+              <label style={{ display: "block", color: "#374151", fontSize: "13px", fontWeight: "500", marginBottom: "6px" }}>{field.label}</label>
+              <input
+                type={field.type}
+                value={form[field.key as keyof typeof form]}
+                onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+                required
+                min={field.key === "age" ? "1" : undefined}
+                max={field.key === "age" ? "120" : undefined}
+                placeholder={field.placeholder}
+                style={{ width: "100%", backgroundColor: "#fff", border: "1px solid #e5e7eb", color: "#111", padding: "10px 14px", fontSize: "14px", borderRadius: "8px", transition: "border-color 0.2s" }}
+              />
+            </div>
+          ))}
 
           <button
             type="submit"
             disabled={loading}
-            style={{ backgroundColor: loading ? "#111" : "#fff", color: loading ? "#333" : "#000", border: loading ? "1px solid #1f1f1f" : "none", padding: "14px", cursor: loading ? "not-allowed" : "pointer", fontWeight: "800", fontSize: "11px", letterSpacing: "3px", borderRadius: "2px", marginTop: "8px", transition: "all 0.2s" }}
+            style={{ backgroundColor: loading ? "#6b7280" : "#111", color: "#fff", border: "none", padding: "12px", cursor: loading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px", marginTop: "8px", transition: "background 0.2s" }}
           >
-            {loading ? "CREATING..." : "CREATE ACCOUNT"}
+            {loading ? "Creating account..." : "Create account"}
           </button>
         </form>
 
-        <p style={{ textAlign: "center", marginTop: "32px", color: "#333", fontSize: "13px" }}>
+        <p style={{ textAlign: "center", marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
           Already have an account?{" "}
-          <a href="/login" style={{ color: "#fff", textDecoration: "none", fontWeight: "600" }}>Log in</a>
+          <a href="/login" style={{ color: "#111", textDecoration: "none", fontWeight: "600" }}>Log in</a>
         </p>
       </div>
     </div>

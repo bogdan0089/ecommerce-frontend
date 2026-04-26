@@ -25,49 +25,38 @@ export default function LoginPage() {
     }
   }
 
-  const inputStyle = {
-    width: "100%",
-    backgroundColor: "#0d0d0d",
-    border: "1px solid #1f1f1f",
-    color: "#fff",
-    padding: "14px 16px",
-    fontSize: "14px",
-    borderRadius: "2px",
-    outline: "none",
-  };
-
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#080808", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-      <style>{`input::placeholder { color: #333; }`}</style>
+    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
+      <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; } input:focus { border-color: #111 !important; outline: none; }`}</style>
 
-      <a href="/" style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px", color: "#fff", textDecoration: "none", marginBottom: "56px" }}>SHOP</a>
+      <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</a>
 
-      <div style={{ width: "100%", maxWidth: "380px" }}>
-        <p style={{ color: "#444", fontSize: "11px", letterSpacing: "3px", marginBottom: "8px" }}>WELCOME BACK</p>
-        <h1 style={{ fontSize: "32px", fontWeight: "800", letterSpacing: "-1px", marginBottom: "40px" }}>Log in</h1>
+      <div style={{ width: "100%", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "40px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#111", marginBottom: "4px" }}>Welcome back</h1>
+        <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "32px" }}>Log in to your account</p>
 
         {error && (
-          <div style={{ backgroundColor: "#dc262610", border: "1px solid #dc262640", color: "#dc2626", padding: "12px 16px", borderRadius: "2px", marginBottom: "20px", fontSize: "13px" }}>
+          <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: "8px", marginBottom: "20px", fontSize: "13px" }}>
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
-            <p style={{ color: "#444", fontSize: "10px", letterSpacing: "2px", marginBottom: "8px" }}>EMAIL</p>
+            <label style={{ display: "block", color: "#374151", fontSize: "13px", fontWeight: "500", marginBottom: "6px" }}>Email</label>
             <input
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
               placeholder="your@email.com"
-              style={inputStyle}
+              style={{ width: "100%", backgroundColor: "#fff", border: "1px solid #e5e7eb", color: "#111", padding: "10px 14px", fontSize: "14px", borderRadius: "8px", transition: "border-color 0.2s" }}
             />
           </div>
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-              <p style={{ color: "#444", fontSize: "10px", letterSpacing: "2px" }}>PASSWORD</p>
-              <a href="/forgot-password" style={{ color: "#444", fontSize: "10px", letterSpacing: "1px", textDecoration: "none" }}>FORGOT?</a>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+              <label style={{ color: "#374151", fontSize: "13px", fontWeight: "500" }}>Password</label>
+              <a href="/forgot-password" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none" }}>Forgot password?</a>
             </div>
             <input
               type="password"
@@ -75,22 +64,22 @@ export default function LoginPage() {
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               required
               placeholder="••••••••"
-              style={inputStyle}
+              style={{ width: "100%", backgroundColor: "#fff", border: "1px solid #e5e7eb", color: "#111", padding: "10px 14px", fontSize: "14px", borderRadius: "8px", transition: "border-color 0.2s" }}
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            style={{ backgroundColor: loading ? "#111" : "#fff", color: loading ? "#333" : "#000", border: loading ? "1px solid #1f1f1f" : "none", padding: "14px", cursor: loading ? "not-allowed" : "pointer", fontWeight: "800", fontSize: "11px", letterSpacing: "3px", borderRadius: "2px", marginTop: "8px", transition: "all 0.2s" }}
+            style={{ backgroundColor: loading ? "#6b7280" : "#111", color: "#fff", border: "none", padding: "12px", cursor: loading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px", marginTop: "8px", transition: "background 0.2s" }}
           >
-            {loading ? "LOGGING IN..." : "LOG IN"}
+            {loading ? "Logging in..." : "Log in"}
           </button>
         </form>
 
-        <p style={{ textAlign: "center", marginTop: "32px", color: "#333", fontSize: "13px" }}>
+        <p style={{ textAlign: "center", marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
           No account?{" "}
-          <a href="/register" style={{ color: "#fff", textDecoration: "none", fontWeight: "600" }}>Create one</a>
+          <a href="/register" style={{ color: "#111", textDecoration: "none", fontWeight: "600" }}>Sign up</a>
         </p>
       </div>
     </div>

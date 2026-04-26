@@ -20,7 +20,7 @@ interface CartItem {
 
 const CATEGORIES = [
   { label: "All", value: "all" },
-  { label: "Footwear", value: "footwear", keywords: ["sneakers", "slides", "jordan", "yeezy", "balance", "air"] },
+  { label: "Footwear", value: "footwear", keywords: ["sneakers", "slides", "jordan", "yeezy", "balance", "air", "campus", "speedex", "sneaker"] },
   { label: "Clothing", value: "clothing", keywords: ["hoodie", "tee", "jeans", "jacket", "shirt"] },
   { label: "Accessories", value: "accessories", keywords: ["cap", "beanie", "bag", "hat"] },
 ];
@@ -105,106 +105,103 @@ export default function ProductsPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#080808" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ width: "32px", height: "32px", border: "2px solid #222", borderTop: "2px solid #fff", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
-          <p style={{ color: "#444", fontSize: "11px", letterSpacing: "4px" }}>LOADING</p>
-        </div>
+        <div style={{ width: "32px", height: "32px", border: "2px solid #e5e7eb", borderTop: "2px solid #111", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#080808", color: "#fff" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#fff", color: "#111" }}>
       <style>{`
         * { box-sizing: border-box; }
-        input::placeholder { color: #444; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        .card { transition: background 0.2s; animation: fadeUp 0.4s ease forwards; opacity: 0; }
-        .card:hover { background: #161616 !important; }
+        input::placeholder { color: #9ca3af; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .card { transition: box-shadow 0.2s, transform 0.2s; animation: fadeUp 0.3s ease forwards; opacity: 0; }
+        .card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.10); transform: translateY(-2px); }
         .card img { transition: transform 0.4s ease; }
         .card:hover img { transform: scale(1.04); }
-        a { transition: color 0.2s; }
-        a:hover { color: #fff !important; }
       `}</style>
 
-      {/* Navbar */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 200, backgroundColor: "rgba(8,8,8,0.96)", backdropFilter: "blur(16px)", borderBottom: "1px solid #141414", padding: "0 40px", height: "60px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "40px" }}>
-          <span style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px" }}>SHOP</span>
-          <div style={{ display: "flex", gap: "4px" }}>
-            {CATEGORIES.map((cat) => (
-              <button key={cat.value} onClick={() => setCategory(cat.value)} style={{ background: "none", border: "none", color: category === cat.value ? "#fff" : "#555", cursor: "pointer", fontSize: "11px", letterSpacing: "2px", fontWeight: "600", padding: "6px 12px", borderRadius: "2px", backgroundColor: category === cat.value ? "#1a1a1a" : "transparent", transition: "all 0.15s" }}>
-                {cat.label.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
+      <nav style={{ position: "sticky", top: 0, zIndex: 200, backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111" }}>SHOP</span>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-          {userName && <span style={{ color: "#444", fontSize: "12px" }}>Hi, {userName.split(" ")[0]}</span>}
-          {isAdmin === true && <a href="/admin" style={{ color: "#555", fontSize: "11px", textDecoration: "none", letterSpacing: "2px" }}>ADMIN</a>}
-          <a href="/profile" style={{ color: "#555", fontSize: "11px", textDecoration: "none", letterSpacing: "2px" }}>PROFILE</a>
-          <button onClick={() => router.push("/cart")} style={{ position: "relative", background: "none", border: "1px solid #1f1f1f", color: "#888", padding: "7px 18px", cursor: "pointer", fontSize: "11px", letterSpacing: "2px", borderRadius: "2px", display: "flex", alignItems: "center", gap: "8px" }}>
-            CART
-            {cartCount > 0 && <span style={{ backgroundColor: "#fff", color: "#000", borderRadius: "50%", width: "17px", height: "17px", fontSize: "10px", fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}
+        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+          {userName && <span style={{ color: "#6b7280", fontSize: "13px" }}>Hi, {userName.split(" ")[0]}</span>}
+          {isAdmin === true && <a href="/admin" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none", fontWeight: "500" }}>Admin</a>}
+          <a href="/profile" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none", fontWeight: "500" }}>Profile</a>
+          <button onClick={() => router.push("/cart")} style={{ position: "relative", background: "#111", border: "none", color: "#fff", padding: "8px 20px", cursor: "pointer", fontSize: "13px", fontWeight: "600", borderRadius: "6px", display: "flex", alignItems: "center", gap: "8px" }}>
+            Cart
+            {cartCount > 0 && <span style={{ backgroundColor: "#fff", color: "#111", borderRadius: "50%", width: "18px", height: "18px", fontSize: "10px", fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}
           </button>
-          <button onClick={handleLogout} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: "11px", letterSpacing: "2px" }}>LOGOUT</button>
+          <button onClick={handleLogout} style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", cursor: "pointer", fontSize: "13px", padding: "7px 16px", borderRadius: "6px" }}>Logout</button>
         </div>
       </nav>
 
       <div style={{ display: "flex" }}>
-        {/* Sidebar */}
-        <aside style={{ width: "220px", minHeight: "calc(100vh - 60px)", borderRight: "1px solid #141414", padding: "32px 20px", flexShrink: 0, position: "sticky", top: "60px", height: "calc(100vh - 60px)", overflowY: "auto" }}>
+        <aside style={{ width: "240px", minHeight: "calc(100vh - 64px)", borderRight: "1px solid #e5e7eb", padding: "32px 24px", flexShrink: 0, position: "sticky", top: "64px", height: "calc(100vh - 64px)", overflowY: "auto" }}>
           <div style={{ marginBottom: "32px" }}>
-            <p style={{ color: "#383838", fontSize: "10px", letterSpacing: "3px", marginBottom: "12px" }}>SEARCH</p>
-            <input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: "100%", backgroundColor: "#0f0f0f", border: "1px solid #1a1a1a", color: "#fff", padding: "9px 12px", fontSize: "13px", borderRadius: "2px", outline: "none" }} />
+            <p style={{ color: "#9ca3af", fontSize: "11px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "10px" }}>Search</p>
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: "100%", backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", color: "#111", padding: "9px 12px", fontSize: "13px", borderRadius: "6px", outline: "none" }}
+            />
           </div>
 
           <div style={{ marginBottom: "32px" }}>
-            <p style={{ color: "#383838", fontSize: "10px", letterSpacing: "3px", marginBottom: "12px" }}>MAX PRICE</p>
-            <input type="range" min="0" max="500" step="10" value={maxPrice} onChange={(e) => setMaxPrice(parseInt(e.target.value))} style={{ width: "100%", accentColor: "#fff", cursor: "pointer" }} />
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px" }}>
-              <span style={{ color: "#444", fontSize: "12px" }}>$0</span>
-              <span style={{ color: "#fff", fontSize: "12px", fontWeight: "700" }}>${maxPrice}</span>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: "32px" }}>
-            <p style={{ color: "#383838", fontSize: "10px", letterSpacing: "3px", marginBottom: "12px" }}>CATEGORY</p>
+            <p style={{ color: "#9ca3af", fontSize: "11px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "10px" }}>Category</p>
             {CATEGORIES.map((cat) => (
-              <button key={cat.value} onClick={() => setCategory(cat.value)} style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", background: "none", border: "none", color: category === cat.value ? "#fff" : "#444", cursor: "pointer", fontSize: "12px", padding: "8px 0", letterSpacing: "1px", transition: "color 0.2s" }}>
-                <span style={{ width: "4px", height: "4px", borderRadius: "50%", backgroundColor: category === cat.value ? "#fff" : "#333" }} />
+              <button
+                key={cat.value}
+                onClick={() => setCategory(cat.value)}
+                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", background: category === cat.value ? "#f3f4f6" : "none", border: "none", color: category === cat.value ? "#111" : "#6b7280", cursor: "pointer", fontSize: "13px", padding: "8px 10px", borderRadius: "6px", fontWeight: category === cat.value ? "600" : "400" }}
+              >
                 {cat.label}
               </button>
             ))}
           </div>
 
+          <div style={{ marginBottom: "32px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+              <p style={{ color: "#9ca3af", fontSize: "11px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Max Price</p>
+              <span style={{ color: "#111", fontSize: "13px", fontWeight: "700" }}>${maxPrice}</span>
+            </div>
+            <input type="range" min="0" max="500" step="10" value={maxPrice} onChange={(e) => setMaxPrice(parseInt(e.target.value))} style={{ width: "100%", accentColor: "#111", cursor: "pointer" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
+              <span style={{ color: "#9ca3af", fontSize: "12px" }}>$0</span>
+              <span style={{ color: "#9ca3af", fontSize: "12px" }}>$500</span>
+            </div>
+          </div>
+
           {(search || category !== "all" || maxPrice < 500) && (
-            <button onClick={() => { setSearch(""); setCategory("all"); setMaxPrice(500); }} style={{ width: "100%", background: "none", border: "1px solid #1f1f1f", color: "#444", padding: "8px", cursor: "pointer", fontSize: "10px", letterSpacing: "3px", borderRadius: "2px" }}>
-              CLEAR ALL
+            <button
+              onClick={() => { setSearch(""); setCategory("all"); setMaxPrice(500); }}
+              style={{ width: "100%", background: "none", border: "1px solid #e5e7eb", color: "#6b7280", padding: "8px", cursor: "pointer", fontSize: "12px", borderRadius: "6px" }}
+            >
+              Clear filters
             </button>
           )}
         </aside>
 
-        {/* Grid */}
         <main style={{ flex: 1, padding: "32px 32px 80px" }}>
-          <p style={{ color: "#383838", fontSize: "11px", letterSpacing: "3px", marginBottom: "24px" }}>{filtered.length} PRODUCTS</p>
+          <p style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "24px" }}>{filtered.length} products</p>
 
           {filtered.length === 0 ? (
             <div style={{ textAlign: "center", padding: "100px 0" }}>
-              <p style={{ color: "#2a2a2a", fontSize: "13px", letterSpacing: "4px" }}>NO PRODUCTS FOUND</p>
+              <p style={{ color: "#d1d5db", fontSize: "16px" }}>No products found</p>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "2px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "16px" }}>
               {filtered.map((product, i) => {
                 const inCart = cart.find((c) => c.id === product.id);
                 const qty = quantities[product.id] || 1;
                 return (
-                  <div key={product.id} className="card" style={{ backgroundColor: "#0f0f0f", animationDelay: `${i * 0.05}s` }}>
-                    {/* Image */}
-                    <a href={`/products/${product.id}`} style={{ display: "block", overflow: "hidden", aspectRatio: "1", backgroundColor: "#141414", textDecoration: "none" }}>
+                  <div key={product.id} className="card" style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", overflow: "hidden", animationDelay: `${i * 0.04}s` }}>
+                    <a href={`/products/${product.id}`} style={{ display: "block", overflow: "hidden", aspectRatio: "1", backgroundColor: "#f9fafb", textDecoration: "none" }}>
                       <img
                         src={product.image_url || getImageUrl(product.id)}
                         alt={product.name}
@@ -213,26 +210,24 @@ export default function ProductsPage() {
                       />
                     </a>
 
-                    {/* Info */}
-                    <div style={{ padding: "18px" }}>
+                    <div style={{ padding: "16px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>
-                        <p style={{ fontSize: "14px", fontWeight: "600", letterSpacing: "0.2px" }}>{product.name}</p>
-                        <p style={{ fontSize: "15px", fontWeight: "700", flexShrink: 0, marginLeft: "8px" }}>${product.price}</p>
+                        <p style={{ fontSize: "14px", fontWeight: "600", color: "#111" }}>{product.name}</p>
+                        <p style={{ fontSize: "15px", fontWeight: "700", color: "#111", flexShrink: 0, marginLeft: "8px" }}>${product.price}</p>
                       </div>
-                      <p style={{ color: "#383838", fontSize: "10px", letterSpacing: "2px", marginBottom: "16px" }}>{getCategory(product.name).toUpperCase()}</p>
+                      <p style={{ color: "#9ca3af", fontSize: "12px", marginBottom: "14px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{getCategory(product.name)}</p>
 
-                      {/* Qty + Add */}
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                        <div style={{ display: "flex", alignItems: "center", border: "1px solid #1f1f1f", borderRadius: "2px" }}>
-                          <button onClick={() => setQty(product.id, -1)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", padding: "7px 12px", fontSize: "14px", lineHeight: 1 }}>−</button>
-                          <span style={{ color: "#fff", fontSize: "13px", fontWeight: "600", minWidth: "20px", textAlign: "center" }}>{qty}</span>
-                          <button onClick={() => setQty(product.id, 1)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", padding: "7px 12px", fontSize: "14px", lineHeight: 1 }}>+</button>
+                        <div style={{ display: "flex", alignItems: "center", border: "1px solid #e5e7eb", borderRadius: "6px" }}>
+                          <button onClick={() => setQty(product.id, -1)} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: "6px 10px", fontSize: "16px", lineHeight: 1 }}>−</button>
+                          <span style={{ color: "#111", fontSize: "13px", fontWeight: "600", minWidth: "20px", textAlign: "center" }}>{qty}</span>
+                          <button onClick={() => setQty(product.id, 1)} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: "6px 10px", fontSize: "16px", lineHeight: 1 }}>+</button>
                         </div>
                         <button
                           onClick={() => addToCart(product)}
-                          style={{ flex: 1, backgroundColor: inCart ? "#141414" : "#fff", color: inCart ? "#555" : "#000", border: inCart ? "1px solid #1f1f1f" : "none", borderRadius: "2px", padding: "8px", cursor: "pointer", fontWeight: "700", fontSize: "10px", letterSpacing: "2px", transition: "all 0.2s" }}
+                          style={{ flex: 1, backgroundColor: inCart ? "#f3f4f6" : "#111", color: inCart ? "#6b7280" : "#fff", border: "none", borderRadius: "6px", padding: "8px", cursor: "pointer", fontWeight: "600", fontSize: "12px", transition: "all 0.2s" }}
                         >
-                          {inCart ? `IN CART (${inCart.qty})` : "ADD TO CART"}
+                          {inCart ? `In cart (${inCart.qty})` : "Add to cart"}
                         </button>
                       </div>
                     </div>
