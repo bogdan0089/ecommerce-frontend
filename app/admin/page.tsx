@@ -1,23 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   authFetch, createProduct, deleteProduct, moderateProduct,
   getAdminOrders, getAdminClients, updateOrderStatus, logout,
+  getCategories, createCategory, updateProduct,
+  Category,
 } from "@/lib/api";
+import { getAccessToken } from "@/lib/api";
 
 interface Product { id: number; name: string; price: number; color: string; status: string; image_url?: string | null; }
 interface Order { id: number; title: string; client_id: number; status: string; }
 interface Client { id: number; name: string; email: string; age: number; balance: number; role?: string; }
 
 type ProductFilter = "all" | "accept" | "pending" | "rejected";
-type Tab = "products" | "orders" | "stats";
+type Tab = "products" | "orders" | "categories" | "stats";
 
 const PRODUCT_STATUS_COLOR: Record<string, string> = { accept: "#16a34a", pending: "#d97706", rejected: "#dc2626" };
 const PRODUCT_STATUS_BG: Record<string, string> = { accept: "#f0fdf4", pending: "#fffbeb", rejected: "#fef2f2" };
 const ORDER_STATUS_COLOR: Record<string, string> = { create: "#d97706", completed: "#16a34a", cancelled: "#dc2626" };
 const ORDER_STATUS_BG: Record<string, string> = { create: "#fffbeb", completed: "#f0fdf4", cancelled: "#fef2f2" };
+
+interface Notification { id: number; text: string; }
 
 export default function AdminPage() {
   const router = useRouter();
@@ -25,17 +30,45 @@ export default function AdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ProductFilter>("all");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", price: "", color: "#000000", image_url: "" });
   const [error, setError] = useState("");
 
+  // Edit product
+  const [editProductId, setEditProductId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", price: "", color: "#000000", image_url: "" });
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Categories
+  const [catName, setCatName] = useState("");
+  const [catLoading, setCatLoading] = useState(false);
+  const [catError, setCatError] = useState("");
+
+  // WebSocket notifications
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+
   useEffect(() => {
-    Promise.all([authFetch("/product/admin/all?limit=100"), getAdminOrders(), getAdminClients()])
-      .then(([p, o, c]) => { setProducts(p); setOrders(o); setClients(c); })
+    Promise.all([authFetch("/product/admin/all?limit=100"), getAdminOrders(), getAdminClients(), getCategories()])
+      .then(([p, o, c, cats]) => { setProducts(p); setOrders(o); setClients(c); setCategories(cats); })
       .catch(() => router.push("/login"))
       .finally(() => setLoading(false));
+
+    const token = getAccessToken();
+    if (token) {
+      const ws = new WebSocket(`wss://bohdan-shop.duckdns.org/ws/admin?token=${token}`);
+      wsRef.current = ws;
+      ws.onmessage = (e) => {
+        const notif: Notification = { id: Date.now(), text: e.data };
+        setNotifications((prev) => [notif, ...prev.slice(0, 9)]);
+        setTimeout(() => setNotifications((prev) => prev.filter((n) => n.id !== notif.id)), 6000);
+      };
+    }
+
+    return () => { wsRef.current?.close(); };
   }, []);
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
@@ -65,6 +98,39 @@ export default function AdminPage() {
     catch (err: unknown) { if (err instanceof Error) setError(err.message); }
   }
 
+  function startEdit(product: Product) {
+    setEditProductId(product.id);
+    setEditForm({ name: product.name, price: String(product.price), color: product.color, image_url: product.image_url || "" });
+  }
+
+  async function handleEditSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editProductId) return;
+    setEditLoading(true);
+    try {
+      const updated = await updateProduct(editProductId, {
+        name: editForm.name,
+        price: parseFloat(editForm.price),
+        color: editForm.color,
+        image_url: editForm.image_url || null,
+      });
+      setProducts((prev) => prev.map((p) => p.id === editProductId ? { ...p, ...updated } : p));
+      setEditProductId(null);
+    } catch (err: unknown) { if (err instanceof Error) setError(err.message); }
+    finally { setEditLoading(false); }
+  }
+
+  async function handleCreateCategory(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault(); setCatError("");
+    setCatLoading(true);
+    try {
+      const cat = await createCategory(catName);
+      setCategories((prev) => [...prev, cat]);
+      setCatName("");
+    } catch (err: unknown) { if (err instanceof Error) setCatError(err.message); }
+    finally { setCatLoading(false); }
+  }
+
   const productCounts = {
     all: products.length,
     accept: products.filter((p) => p.status === "accept").length,
@@ -89,7 +155,20 @@ export default function AdminPage() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", color: "#111" }}>
-      <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; }`}</style>
+      <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; } @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }`}</style>
+
+      {/* WS Notifications */}
+      {notifications.length > 0 && (
+        <div style={{ position: "fixed", top: "80px", right: "24px", zIndex: 1000, display: "flex", flexDirection: "column", gap: "8px" }}>
+          {notifications.map((n) => (
+            <div key={n.id} style={{ backgroundColor: "#111", color: "#fff", padding: "12px 18px", borderRadius: "10px", fontSize: "13px", fontWeight: "500", maxWidth: "320px", boxShadow: "0 4px 16px rgba(0,0,0,0.15)", animation: "slideIn 0.3s ease", display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#16a34a", flexShrink: 0 }} />
+              {n.text}
+              <button onClick={() => setNotifications((prev) => prev.filter((x) => x.id !== n.id))} style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", marginLeft: "auto", fontSize: "16px", lineHeight: 1 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <a href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</a>
@@ -108,7 +187,7 @@ export default function AdminPage() {
         )}
 
         <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: "32px" }}>
-          {(["products", "orders", "stats"] as Tab[]).map((t) => (
+          {(["products", "orders", "categories", "stats"] as Tab[]).map((t) => (
             <button key={t} onClick={() => setTab(t)} style={{ background: "none", border: "none", color: tab === t ? "#111" : "#6b7280", cursor: "pointer", fontSize: "14px", padding: "10px 24px", borderBottom: tab === t ? "2px solid #111" : "2px solid transparent", fontWeight: tab === t ? "600" : "400", display: "flex", alignItems: "center", gap: "8px", textTransform: "capitalize" }}>
               {t}
               {t === "orders" && orderCounts.create > 0 && <span style={{ backgroundColor: "#f59e0b", color: "#fff", borderRadius: "50%", width: "18px", height: "18px", fontSize: "10px", fontWeight: "700", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{orderCounts.create}</span>}
@@ -116,6 +195,37 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+
+        {tab === "categories" && (
+          <div style={{ maxWidth: "600px" }}>
+            <form onSubmit={handleCreateCategory} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "24px", marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "14px" }}>New category</h3>
+              {catError && <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "13px" }}>{catError}</div>}
+              <div style={{ display: "flex", gap: "10px" }}>
+                <input type="text" value={catName} onChange={(e) => setCatName(e.target.value)} required placeholder="Category name" style={{ ...inputStyle, flex: 1 }} />
+                <button type="submit" disabled={catLoading} style={{ backgroundColor: catLoading ? "#e5e7eb" : "#111", color: catLoading ? "#9ca3af" : "#fff", border: "none", padding: "9px 20px", cursor: catLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "6px", whiteSpace: "nowrap" }}>
+                  {catLoading ? "Adding..." : "+ Add"}
+                </button>
+              </div>
+            </form>
+
+            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
+              <div style={{ padding: "12px 20px", backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                <span style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "600" }}>CATEGORIES ({categories.length})</span>
+              </div>
+              {categories.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px", color: "#9ca3af", fontSize: "14px" }}>No categories yet</div>
+              ) : (
+                categories.map((cat, i) => (
+                  <div key={cat.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: i < categories.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                    <span style={{ fontSize: "14px", fontWeight: "500" }}>{cat.name}</span>
+                    <span style={{ color: "#9ca3af", fontSize: "12px" }}>#{cat.id}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {tab === "stats" && (
           <div>
@@ -226,7 +336,7 @@ export default function AdminPage() {
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <button onClick={() => setShowForm(!showForm)} style={{ backgroundColor: showForm ? "#f9fafb" : "#111", color: showForm ? "#6b7280" : "#fff", border: showForm ? "1px solid #e5e7eb" : "none", padding: "9px 20px", cursor: "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px" }}>
+              <button onClick={() => { setShowForm(!showForm); setEditProductId(null); }} style={{ backgroundColor: showForm ? "#f9fafb" : "#111", color: showForm ? "#6b7280" : "#fff", border: showForm ? "1px solid #e5e7eb" : "none", padding: "9px 20px", cursor: "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px" }}>
                 {showForm ? "Cancel" : "+ Add product"}
               </button>
             </div>
@@ -253,29 +363,57 @@ export default function AdminPage() {
             )}
 
             <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 120px 160px", padding: "12px 16px", backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 120px 180px", padding: "12px 16px", backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
                 {["ID", "Img", "Name", "Price", "Color", "Status", "Actions"].map((h) => (
                   <span key={h} style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "600" }}>{h}</span>
                 ))}
               </div>
               {visibleProducts.length === 0 && <div style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}>No products</div>}
               {visibleProducts.map((product) => (
-                <div key={product.id} style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 120px 160px", padding: "10px 16px", borderBottom: "1px solid #f3f4f6", alignItems: "center" }}>
-                  <span style={{ color: "#9ca3af", fontSize: "13px" }}>#{product.id}</span>
-                  <div style={{ width: "36px", height: "36px", borderRadius: "6px", overflow: "hidden", backgroundColor: "#f3f4f6" }}>
-                    {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", backgroundColor: product.color }} />}
+                <div key={product.id}>
+                  <div style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 120px 180px", padding: "10px 16px", borderBottom: editProductId === product.id ? "none" : "1px solid #f3f4f6", alignItems: "center", backgroundColor: editProductId === product.id ? "#f9fafb" : "#fff" }}>
+                    <span style={{ color: "#9ca3af", fontSize: "13px" }}>#{product.id}</span>
+                    <div style={{ width: "36px", height: "36px", borderRadius: "6px", overflow: "hidden", backgroundColor: "#f3f4f6" }}>
+                      {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", backgroundColor: product.color }} />}
+                    </div>
+                    <span style={{ fontSize: "14px", fontWeight: "600" }}>{product.name}</span>
+                    <span style={{ fontSize: "13px" }}>${product.price}</span>
+                    <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: product.color, border: "2px solid #e5e7eb" }} />
+                    <span style={{ display: "inline-block", backgroundColor: PRODUCT_STATUS_BG[product.status] || "#f3f4f6", color: PRODUCT_STATUS_COLOR[product.status] || "#6b7280", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "600", textTransform: "capitalize", width: "fit-content" }}>
+                      {product.status}
+                    </span>
+                    <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+                      <button onClick={() => editProductId === product.id ? setEditProductId(null) : startEdit(product)} style={{ backgroundColor: editProductId === product.id ? "#f3f4f6" : "#eff6ff", color: editProductId === product.id ? "#6b7280" : "#2563eb", border: "1px solid " + (editProductId === product.id ? "#e5e7eb" : "#bfdbfe"), padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>
+                        {editProductId === product.id ? "Cancel" : "Edit"}
+                      </button>
+                      {product.status !== "accept" && <button onClick={() => handleModerate(product.id, "accept")} style={{ backgroundColor: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>✓</button>}
+                      {product.status !== "rejected" && <button onClick={() => handleModerate(product.id, "rejected")} style={{ backgroundColor: "#fffbeb", color: "#d97706", border: "1px solid #fde68a", padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>✗</button>}
+                      <button onClick={() => handleDelete(product.id)} style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>Del</button>
+                    </div>
                   </div>
-                  <span style={{ fontSize: "14px", fontWeight: "600" }}>{product.name}</span>
-                  <span style={{ fontSize: "13px" }}>${product.price}</span>
-                  <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: product.color, border: "2px solid #e5e7eb" }} />
-                  <span style={{ display: "inline-block", backgroundColor: PRODUCT_STATUS_BG[product.status] || "#f3f4f6", color: PRODUCT_STATUS_COLOR[product.status] || "#6b7280", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "600", textTransform: "capitalize", width: "fit-content" }}>
-                    {product.status}
-                  </span>
-                  <div style={{ display: "flex", gap: "5px" }}>
-                    {product.status !== "accept" && <button onClick={() => handleModerate(product.id, "accept")} style={{ backgroundColor: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>Approve</button>}
-                    {product.status !== "rejected" && <button onClick={() => handleModerate(product.id, "rejected")} style={{ backgroundColor: "#fffbeb", color: "#d97706", border: "1px solid #fde68a", padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>Reject</button>}
-                    <button onClick={() => handleDelete(product.id)} style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>Del</button>
-                  </div>
+
+                  {editProductId === product.id && (
+                    <form onSubmit={handleEditSave} style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", backgroundColor: "#f9fafb" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 1fr", gap: "12px", alignItems: "end" }}>
+                        <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Name</label><input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required style={inputStyle} /></div>
+                        <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Image URL</label><input type="url" value={editForm.image_url} onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })} placeholder="https://..." style={inputStyle} /></div>
+                        <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Price ($)</label><input type="number" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} required min="0" step="0.01" style={inputStyle} /></div>
+                        <div>
+                          <label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Color</label>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <input type="color" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} style={{ width: "36px", height: "34px", border: "1px solid #e5e7eb", borderRadius: "6px", cursor: "pointer", padding: "2px" }} />
+                            <input type="text" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: "14px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                        <button type="button" onClick={() => setEditProductId(null)} style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", padding: "8px 18px", cursor: "pointer", fontSize: "13px", borderRadius: "6px" }}>Cancel</button>
+                        <button type="submit" disabled={editLoading} style={{ backgroundColor: editLoading ? "#e5e7eb" : "#111", color: editLoading ? "#9ca3af" : "#fff", border: "none", padding: "8px 20px", cursor: editLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "6px" }}>
+                          {editLoading ? "Saving..." : "Save changes"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               ))}
             </div>

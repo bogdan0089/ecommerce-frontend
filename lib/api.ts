@@ -214,6 +214,55 @@ export async function checkoutOrder(orderId: number): Promise<Order> {
   return authFetch(`/order/${orderId}/checkout`, { method: "POST" });
 }
 
+export interface Category {
+  id: number;
+  name: string;
+}
+
+export interface OrderProduct {
+  id: number;
+  name: string;
+  price: number;
+  color: string;
+  quantity: number;
+}
+
+export interface OrderWithProducts {
+  id: number;
+  title: string;
+  status: string;
+  client_id: number;
+  products: OrderProduct[];
+}
+
+export async function updateClient(clientId: number, data: { name: string; age: number; address?: string }): Promise<Client> {
+  return authFetch(`/client/${clientId}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export async function deleteClient(clientId: number): Promise<void> {
+  return authFetch(`/client/${clientId}`, { method: "DELETE" });
+}
+
+export async function getOrderWithProducts(orderId: number): Promise<OrderWithProducts> {
+  return authFetch(`/order/order_with_products/${orderId}`);
+}
+
+export async function deleteProductFromOrder(orderId: number, productId: number): Promise<Order> {
+  return authFetch(`/order/${orderId}/order/${productId}/product`, { method: "DELETE" });
+}
+
+export async function getCategories(limit = 50, offset = 0): Promise<Category[]> {
+  return authFetch(`/category/admin?limit=${limit}&offset=${offset}`);
+}
+
+export async function createCategory(name: string): Promise<Category> {
+  return authFetch("/category/create", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export async function updateProduct(id: number, data: { name?: string; price?: number; color?: string; image_url?: string | null }): Promise<Product> {
+  return authFetch(`/product/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
 export async function authFetch(path: string, options: RequestInit = {}) {
   const token = getAccessToken();
   const res = await fetch(`${API_URL}${path}`, {

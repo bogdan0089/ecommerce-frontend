@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
-import { authFetch, logout, getMyStats, changePassword, createPaymentIntent, ClientStats } from "@/lib/api";
+import {
+  authFetch, logout, getMyStats, changePassword, createPaymentIntent,
+  updateClient, deleteClient, getOrderWithProducts, deleteProductFromOrder,
+  ClientStats, OrderWithProducts,
+} from "@/lib/api";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY!);
 
@@ -53,12 +57,8 @@ function PaymentForm({ clientSecret, amount, onSuccess }: { clientSecret: string
 interface Client { id: number; name: string; email: string; age: number; balance: number; role: string; }
 interface Order { id: number; title: string; status: string; client_id: number; }
 
-const STATUS_COLOR: Record<string, string> = {
-  create: "#d97706", completed: "#16a34a", cancelled: "#dc2626",
-};
-const STATUS_BG: Record<string, string> = {
-  create: "#fffbeb", completed: "#f0fdf4", cancelled: "#fef2f2",
-};
+const STATUS_COLOR: Record<string, string> = { create: "#d97706", completed: "#16a34a", cancelled: "#dc2626" };
+const STATUS_BG: Record<string, string> = { create: "#fffbeb", completed: "#f0fdf4", cancelled: "#fef2f2" };
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -66,20 +66,43 @@ export default function ProfilePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<ClientStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "deposit" | "security">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "edit" | "deposit" | "security">("overview");
+
+  // Deposit
   const [depositAmount, setDepositAmount] = useState("");
   const [depositLoading, setDepositLoading] = useState(false);
   const [depositError, setDepositError] = useState("");
   const [depositSuccess, setDepositSuccess] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+
+  // Password
   const [pwForm, setPwForm] = useState({ old_password: "", new_password: "", confirm: "" });
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState(false);
 
+  // Edit profile
+  const [editForm, setEditForm] = useState({ name: "", age: "", address: "" });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editSuccess, setEditSuccess] = useState(false);
+
+  // Delete account
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Order details
+  const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
+  const [orderDetails, setOrderDetails] = useState<Record<number, OrderWithProducts>>({});
+  const [orderDetailsLoading, setOrderDetailsLoading] = useState<number | null>(null);
+
   useEffect(() => {
     Promise.all([authFetch("/client/me"), authFetch("/client/me/orders"), getMyStats()])
-      .then(([me, myOrders, myStats]) => { setClient(me); setOrders(myOrders); setStats(myStats); })
+      .then(([me, myOrders, myStats]) => {
+        setClient(me);
+        setOrders(myOrders);
+        setStats(myStats);
+        setEditForm({ name: me.name, age: String(me.age), address: "" });
+      })
       .catch(() => router.push("/login"))
       .finally(() => setLoading(false));
   }, []);
@@ -109,6 +132,63 @@ export default function ProfilePage() {
     } catch (err: unknown) {
       setDepositError(err instanceof Error ? err.message : "Error");
     } finally { setDepositLoading(false); }
+  }
+
+  async function handleEditProfile(e: { preventDefault(): void }) {
+    e.preventDefault();
+    if (!client) return;
+    setEditLoading(true); setEditError(""); setEditSuccess(false);
+    try {
+      const updated = await updateClient(client.id, {
+        name: editForm.name,
+        age: parseInt(editForm.age),
+        address: editForm.address || undefined,
+      });
+      setClient((prev) => prev ? { ...prev, name: updated.name, age: updated.age } : prev);
+      setEditSuccess(true);
+      setTimeout(() => setEditSuccess(false), 3000);
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : "Error");
+    } finally { setEditLoading(false); }
+  }
+
+  async function handleDeleteAccount() {
+    if (!client) return;
+    if (!confirm("Are you sure? This action cannot be undone.")) return;
+    setDeleteLoading(true);
+    try {
+      await deleteClient(client.id);
+      logout();
+      router.push("/login");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error deleting account");
+      setDeleteLoading(false);
+    }
+  }
+
+  async function toggleOrderDetails(orderId: number) {
+    if (expandedOrder === orderId) { setExpandedOrder(null); return; }
+    setExpandedOrder(orderId);
+    if (orderDetails[orderId]) return;
+    setOrderDetailsLoading(orderId);
+    try {
+      const data = await getOrderWithProducts(orderId);
+      setOrderDetails((prev) => ({ ...prev, [orderId]: data }));
+    } catch {
+    } finally { setOrderDetailsLoading(null); }
+  }
+
+  async function handleRemoveProduct(orderId: number, productId: number) {
+    if (!confirm("Remove this product from the order?")) return;
+    try {
+      await deleteProductFromOrder(orderId, productId);
+      setOrderDetails((prev) => ({
+        ...prev,
+        [orderId]: { ...prev[orderId], products: prev[orderId].products.filter((p) => p.id !== productId) },
+      }));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error");
+    }
   }
 
   if (loading) return (
@@ -163,13 +243,13 @@ export default function ProfilePage() {
         </div>
 
         <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: "28px" }}>
-          {(["overview", "orders", "deposit", "security"] as const).map((tab) => (
+          {(["overview", "orders", "edit", "deposit", "security"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               style={{ background: "none", border: "none", color: activeTab === tab ? "#111" : "#6b7280", cursor: "pointer", fontSize: "14px", padding: "10px 20px", borderBottom: activeTab === tab ? "2px solid #111" : "2px solid transparent", fontWeight: activeTab === tab ? "600" : "400", textTransform: "capitalize" }}
             >
-              {tab}
+              {tab === "edit" ? "Edit profile" : tab}
             </button>
           ))}
         </div>
@@ -218,18 +298,102 @@ export default function ProfilePage() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {orders.map((order) => (
-                  <div key={order.id} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <p style={{ fontWeight: "600", marginBottom: "4px", fontSize: "15px" }}>{order.title}</p>
-                      <p style={{ color: "#9ca3af", fontSize: "13px" }}>Order #{order.id}</p>
+                  <div key={order.id} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
+                    <div style={{ padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <p style={{ fontWeight: "600", marginBottom: "4px", fontSize: "15px" }}>{order.title}</p>
+                        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Order #{order.id}</p>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <span style={{ backgroundColor: STATUS_BG[order.status] || "#f3f4f6", color: STATUS_COLOR[order.status] || "#6b7280", padding: "4px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", textTransform: "capitalize" }}>
+                          {order.status}
+                        </span>
+                        <button
+                          onClick={() => toggleOrderDetails(order.id)}
+                          style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", cursor: "pointer", fontSize: "12px", padding: "5px 14px", borderRadius: "6px", fontWeight: "500" }}
+                        >
+                          {expandedOrder === order.id ? "Hide" : "Details"}
+                        </button>
+                      </div>
                     </div>
-                    <span style={{ backgroundColor: STATUS_BG[order.status] || "#f3f4f6", color: STATUS_COLOR[order.status] || "#6b7280", padding: "4px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", textTransform: "capitalize" }}>
-                      {order.status}
-                    </span>
+
+                    {expandedOrder === order.id && (
+                      <div style={{ borderTop: "1px solid #f3f4f6", padding: "16px 20px", backgroundColor: "#fafafa" }}>
+                        {orderDetailsLoading === order.id ? (
+                          <div style={{ display: "flex", justifyContent: "center", padding: "16px" }}>
+                            <div style={{ width: "20px", height: "20px", border: "2px solid #e5e7eb", borderTop: "2px solid #111", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                          </div>
+                        ) : orderDetails[order.id]?.products?.length === 0 ? (
+                          <p style={{ color: "#9ca3af", fontSize: "13px" }}>No products in this order</p>
+                        ) : (
+                          <div>
+                            <p style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "600", marginBottom: "10px" }}>PRODUCTS</p>
+                            {orderDetails[order.id]?.products?.map((product) => (
+                              <div key={product.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #f3f4f6" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                  <div style={{ width: "28px", height: "28px", borderRadius: "6px", backgroundColor: product.color, border: "1px solid #e5e7eb", flexShrink: 0 }} />
+                                  <div>
+                                    <p style={{ fontSize: "13px", fontWeight: "600" }}>{product.name}</p>
+                                    <p style={{ color: "#9ca3af", fontSize: "12px" }}>Qty: {product.quantity}</p>
+                                  </div>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                                  <span style={{ fontSize: "13px", fontWeight: "700" }}>${(product.price * product.quantity).toFixed(2)}</span>
+                                  {order.status === "create" && (
+                                    <button
+                                      onClick={() => handleRemoveProduct(order.id, product.id)}
+                                      style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", cursor: "pointer", fontSize: "11px", padding: "4px 10px", borderRadius: "6px", fontWeight: "600" }}
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "edit" && (
+          <div style={{ maxWidth: "400px" }}>
+            {editSuccess && <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>Profile updated successfully!</div>}
+            {editError && <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>{editError}</div>}
+
+            <form onSubmit={handleEditProfile} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              {[
+                { label: "Full name", key: "name", type: "text", placeholder: "Your name" },
+                { label: "Age", key: "age", type: "number", placeholder: "25" },
+                { label: "Address (optional)", key: "address", type: "text", placeholder: "Your address" },
+              ].map((field) => (
+                <div key={field.key}>
+                  <label style={{ display: "block", color: "#374151", fontSize: "13px", fontWeight: "500", marginBottom: "6px" }}>{field.label}</label>
+                  <input
+                    type={field.type}
+                    value={editForm[field.key as keyof typeof editForm]}
+                    onChange={(e) => setEditForm({ ...editForm, [field.key]: e.target.value })}
+                    placeholder={field.placeholder}
+                    required={field.key !== "address"}
+                    min={field.key === "age" ? "1" : undefined}
+                    max={field.key === "age" ? "120" : undefined}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+              <button
+                type="submit"
+                disabled={editLoading}
+                style={{ backgroundColor: editLoading ? "#e5e7eb" : "#111", color: editLoading ? "#9ca3af" : "#fff", border: "none", padding: "13px", cursor: editLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px", marginTop: "4px" }}
+              >
+                {editLoading ? "Saving..." : "Save changes"}
+              </button>
+            </form>
           </div>
         )}
 
@@ -292,6 +456,18 @@ export default function ProfilePage() {
                 {pwLoading ? "Saving..." : "Update password"}
               </button>
             </form>
+
+            <div style={{ marginTop: "40px", paddingTop: "28px", borderTop: "1px solid #f3f4f6" }}>
+              <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "8px" }}>Danger zone</h3>
+              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "16px" }}>Once deleted, your account cannot be recovered.</p>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteLoading}
+                style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", padding: "11px 24px", cursor: deleteLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px" }}
+              >
+                {deleteLoading ? "Deleting..." : "Delete account"}
+              </button>
+            </div>
           </div>
         )}
       </main>
