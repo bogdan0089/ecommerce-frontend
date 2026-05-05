@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   authFetch, createProduct, deleteProduct, moderateProduct,
   getAdminOrders, getAdminClients, updateOrderStatus, logout,
-  getCategories, createCategory, updateProduct,
+  getCategories, createCategory, updateProduct, generateProductDescription,
   Category,
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/api";
@@ -34,7 +34,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ProductFilter>("all");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", price: "", color: "#000000", image_url: "" });
+  const [form, setForm] = useState({ name: "", price: "", color: "#000000", image_url: "", description: "" });
   const [error, setError] = useState("");
 
   // Edit product
@@ -46,6 +46,9 @@ export default function AdminPage() {
   const [catName, setCatName] = useState("");
   const [catLoading, setCatLoading] = useState(false);
   const [catError, setCatError] = useState("");
+
+  // AI description
+  const [genDescLoading, setGenDescLoading] = useState(false);
 
   // WebSocket notifications
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -74,8 +77,8 @@ export default function AdminPage() {
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setError("");
     try {
-      await createProduct({ name: form.name, price: parseFloat(form.price), color: form.color, image_url: form.image_url || null });
-      setForm({ name: "", price: "", color: "#000000", image_url: "" });
+      await createProduct({ name: form.name, price: parseFloat(form.price), color: form.color, image_url: form.image_url || null, description: form.description || null });
+      setForm({ name: "", price: "", color: "#000000", image_url: "", description: "" });
       setShowForm(false);
       const data = await authFetch("/product/admin/all?limit=100");
       setProducts(data);
@@ -356,7 +359,34 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
-                <div style={{ marginTop: "16px", display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ marginTop: "12px" }}>
+                  <label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Description</label>
+                  <textarea
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    placeholder="Product description..."
+                    rows={3}
+                    style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+                  />
+                </div>
+                <div style={{ marginTop: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                  <button
+                    type="button"
+                    disabled={genDescLoading || !form.name}
+                    onClick={async () => {
+                      if (!form.name) return;
+                      setGenDescLoading(true);
+                      try {
+                        const res = await generateProductDescription(form.name);
+                        setForm((prev) => ({ ...prev, description: res }));
+                      }
+                      catch { setForm((prev) => ({ ...prev, description: "Failed to generate description." })); }
+                      finally { setGenDescLoading(false); }
+                    }}
+                    style={{ backgroundColor: genDescLoading || !form.name ? "#e5e7eb" : "#f9fafb", color: genDescLoading || !form.name ? "#9ca3af" : "#374151", border: "1px solid #e5e7eb", padding: "9px 18px", cursor: genDescLoading || !form.name ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "12px", borderRadius: "8px" }}
+                  >
+                    {genDescLoading ? "Generating..." : "Generate description with AI"}
+                  </button>
                   <button type="submit" style={{ backgroundColor: "#111", color: "#fff", border: "none", padding: "9px 24px", cursor: "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px" }}>Create</button>
                 </div>
               </form>

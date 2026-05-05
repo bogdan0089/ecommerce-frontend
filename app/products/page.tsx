@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authFetch, getMe, logout } from "@/lib/api";
+import { authFetch, getMe, logout, aiSearch } from "@/lib/api";
 
 interface Product {
   id: number;
@@ -51,6 +51,9 @@ export default function ProductsPage() {
   const [cart, setCart] = useState<CartItem[]>(() =>
     typeof window !== "undefined" ? JSON.parse(localStorage.getItem("cart") || "[]") : []
   );
+  const [aiQuery, setAiQuery] = useState("");
+  const [aiResult, setAiResult] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     getMe()
@@ -185,6 +188,36 @@ export default function ProductsPage() {
               Clear filters
             </button>
           )}
+
+          <div style={{ marginTop: "32px" }}>
+            <p style={{ color: "#9ca3af", fontSize: "11px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "10px" }}>AI Search</p>
+            <input
+              type="text"
+              placeholder="e.g. shoes for running..."
+              value={aiQuery}
+              onChange={(e) => setAiQuery(e.target.value)}
+              style={{ width: "100%", backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", color: "#111", padding: "9px 12px", fontSize: "13px", borderRadius: "6px", outline: "none", marginBottom: "8px" }}
+            />
+            <button
+              onClick={async () => {
+                if (!aiQuery.trim()) return;
+                setAiLoading(true);
+                setAiResult("");
+                try { const res = await aiSearch(aiQuery); setAiResult(res); }
+                catch { setAiResult("Something went wrong."); }
+                finally { setAiLoading(false); }
+              }}
+              disabled={aiLoading}
+              style={{ width: "100%", backgroundColor: aiLoading ? "#e5e7eb" : "#111", color: aiLoading ? "#9ca3af" : "#fff", border: "none", padding: "9px", cursor: aiLoading ? "not-allowed" : "pointer", fontSize: "12px", fontWeight: "600", borderRadius: "6px" }}
+            >
+              {aiLoading ? "Searching..." : "Search with AI"}
+            </button>
+            {aiResult && (
+              <div style={{ marginTop: "10px", backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "6px", padding: "10px 12px", fontSize: "12px", color: "#374151", lineHeight: "1.6" }}>
+                {aiResult}
+              </div>
+            )}
+          </div>
         </aside>
 
         <main style={{ flex: 1, padding: "32px 32px 80px" }}>

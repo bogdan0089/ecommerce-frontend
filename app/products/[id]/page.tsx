@@ -94,6 +94,12 @@ export default function ProductPage() {
             <h1 style={{ fontSize: "32px", fontWeight: "700", letterSpacing: "-0.5px", marginBottom: "8px" }}>{product.name}</h1>
             <p style={{ fontSize: "28px", fontWeight: "800", color: "#111", marginBottom: "32px" }}>${product.price}</p>
 
+            {product.description && (
+              <div style={{ marginBottom: "28px" }}>
+                <p style={{ color: "#374151", fontSize: "14px", lineHeight: "1.7" }}>{product.description}</p>
+              </div>
+            )}
+
             <div style={{ marginBottom: "28px" }}>
               <p style={{ color: "#6b7280", fontSize: "13px", fontWeight: "500", marginBottom: "10px" }}>Color</p>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>

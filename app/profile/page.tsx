@@ -7,6 +7,7 @@ import { Elements, CardElement, useStripe, useElements } from "@stripe/react-str
 import {
   authFetch, logout, getMyStats, changePassword, createPaymentIntent,
   updateClient, deleteClient, getOrderWithProducts, deleteProductFromOrder,
+  getAiRecommendations, aiChat,
   ClientStats, OrderWithProducts,
 } from "@/lib/api";
 
@@ -66,7 +67,7 @@ export default function ProfilePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<ClientStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "edit" | "deposit" | "security">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "edit" | "deposit" | "security" | "ai">("overview");
 
   // Deposit
   const [depositAmount, setDepositAmount] = useState("");
@@ -89,6 +90,13 @@ export default function ProfilePage() {
 
   // Delete account
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // AI
+  const [aiRecs, setAiRecs] = useState("");
+  const [aiRecsLoading, setAiRecsLoading] = useState(false);
+  const [chatMessage, setChatMessage] = useState("");
+  const [chatReply, setChatReply] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
 
   // Order details
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
@@ -243,13 +251,13 @@ export default function ProfilePage() {
         </div>
 
         <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: "28px" }}>
-          {(["overview", "orders", "edit", "deposit", "security"] as const).map((tab) => (
+          {(["overview", "orders", "edit", "deposit", "security", "ai"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               style={{ background: "none", border: "none", color: activeTab === tab ? "#111" : "#6b7280", cursor: "pointer", fontSize: "14px", padding: "10px 20px", borderBottom: activeTab === tab ? "2px solid #111" : "2px solid transparent", fontWeight: activeTab === tab ? "600" : "400", textTransform: "capitalize" }}
             >
-              {tab === "edit" ? "Edit profile" : tab}
+              {tab === "edit" ? "Edit profile" : tab === "ai" ? "AI" : tab}
             </button>
           ))}
         </div>
@@ -467,6 +475,67 @@ export default function ProfilePage() {
               >
                 {deleteLoading ? "Deleting..." : "Delete account"}
               </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "ai" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "28px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "6px" }}>Personalized Recommendations</h3>
+              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "20px" }}>Based on your purchase history</p>
+              {!aiRecs ? (
+                <button
+                  onClick={async () => {
+                    setAiRecsLoading(true);
+                    try { const res = await getAiRecommendations(); setAiRecs(res); }
+                    catch { setAiRecs("Failed to load recommendations."); }
+                    finally { setAiRecsLoading(false); }
+                  }}
+                  disabled={aiRecsLoading}
+                  style={{ backgroundColor: aiRecsLoading ? "#e5e7eb" : "#111", color: aiRecsLoading ? "#9ca3af" : "#fff", border: "none", padding: "11px 24px", cursor: aiRecsLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px" }}
+                >
+                  {aiRecsLoading ? "Loading..." : "Get recommendations"}
+                </button>
+              ) : (
+                <div>
+                  <p style={{ color: "#374151", fontSize: "14px", lineHeight: "1.7", whiteSpace: "pre-line" }}>{aiRecs}</p>
+                  <button onClick={() => setAiRecs("")} style={{ marginTop: "16px", background: "none", border: "1px solid #e5e7eb", color: "#6b7280", padding: "8px 16px", cursor: "pointer", fontSize: "12px", borderRadius: "6px" }}>Refresh</button>
+                </div>
+              )}
+            </div>
+
+            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "28px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "6px" }}>Store Assistant</h3>
+              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "20px" }}>Ask anything about products, delivery or payments</p>
+              <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
+                <input
+                  type="text"
+                  placeholder="e.g. What shoes do you recommend for running?"
+                  value={chatMessage}
+                  onChange={(e) => setChatMessage(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.form?.requestSubmit(); }}
+                  style={{ flex: 1, backgroundColor: "#fff", border: "1px solid #e5e7eb", color: "#111", padding: "10px 14px", fontSize: "14px", borderRadius: "8px", outline: "none" }}
+                />
+                <button
+                  onClick={async () => {
+                    if (!chatMessage.trim()) return;
+                    setChatLoading(true); setChatReply("");
+                    try { const res = await aiChat(chatMessage); setChatReply(res); }
+                    catch { setChatReply("Something went wrong."); }
+                    finally { setChatLoading(false); }
+                  }}
+                  disabled={chatLoading}
+                  style={{ backgroundColor: chatLoading ? "#e5e7eb" : "#111", color: chatLoading ? "#9ca3af" : "#fff", border: "none", padding: "10px 20px", cursor: chatLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px", whiteSpace: "nowrap" }}
+                >
+                  {chatLoading ? "..." : "Send"}
+                </button>
+              </div>
+              {chatReply && (
+                <div style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px", fontSize: "14px", color: "#374151", lineHeight: "1.7", whiteSpace: "pre-line" }}>
+                  {chatReply}
+                </div>
+              )}
             </div>
           </div>
         )}
