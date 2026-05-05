@@ -8,6 +8,7 @@ export interface Product {
   color: string;
   status: string;
   image_url?: string | null;
+  description?: string | null;
 }
 
 export interface RegisterData {
@@ -64,6 +65,7 @@ export interface ProductCreate {
   price: number;
   color: string;
   image_url?: string | null;
+  description?: string | null;
 }
 
 export async function registerClient(data: RegisterData) {
@@ -261,6 +263,22 @@ export async function createCategory(name: string): Promise<Category> {
 
 export async function updateProduct(id: number, data: { name?: string; price?: number; color?: string; image_url?: string | null }): Promise<Product> {
   return authFetch(`/product/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export async function getAiRecommendations(): Promise<string> {
+  return authFetch("/ai/recommendations");
+}
+
+export async function aiSearch(q: string): Promise<string> {
+  return authFetch(`/ai/search?q=${encodeURIComponent(q)}`);
+}
+
+export async function aiChat(message: string): Promise<string> {
+  return authFetch("/ai/chat", { method: "POST", body: JSON.stringify({ message }) });
+}
+
+export async function generateProductDescription(product_name: string): Promise<string> {
+  return authFetch("/ai/generate-description", { method: "POST", body: JSON.stringify({ product_name }) });
 }
 
 export async function authFetch(path: string, options: RequestInit = {}) {
