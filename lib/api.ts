@@ -9,6 +9,7 @@ export interface Product {
   status: string;
   image_url?: string | null;
   description?: string | null;
+  quantity: number;
 }
 
 export interface RegisterData {
@@ -261,7 +262,7 @@ export async function createCategory(name: string): Promise<Category> {
   return authFetch("/category/create", { method: "POST", body: JSON.stringify({ name }) });
 }
 
-export async function updateProduct(id: number, data: { name?: string; price?: number; color?: string; image_url?: string | null }): Promise<Product> {
+export async function updateProduct(id: number, data: { name?: string; price?: number; color?: string; image_url?: string | null; quantity?: number }): Promise<Product> {
   return authFetch(`/product/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
