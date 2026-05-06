@@ -46,7 +46,8 @@ export default function ProductsPage() {
   const [userName, setUserName] = useState("");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const [maxPrice, setMaxPrice] = useState(500);
+  const [priceLimit, setPriceLimit] = useState(1000);
+  const [maxPrice, setMaxPrice] = useState(1000);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [cart, setCart] = useState<CartItem[]>(() =>
     typeof window !== "undefined" ? JSON.parse(localStorage.getItem("cart") || "[]") : []
@@ -70,6 +71,9 @@ export default function ProductsPage() {
         const initQty: Record<number, number> = {};
         data.forEach((p: Product) => (initQty[p.id] = 1));
         setQuantities(initQty);
+        const max = Math.ceil(Math.max(...data.map((p: Product) => p.price)) / 100) * 100;
+        setPriceLimit(max);
+        setMaxPrice(max);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -173,16 +177,16 @@ export default function ProductsPage() {
               <p style={{ color: "#9ca3af", fontSize: "11px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase" }}>Max Price</p>
               <span style={{ color: "#111", fontSize: "13px", fontWeight: "700" }}>${maxPrice}</span>
             </div>
-            <input type="range" min="0" max="500" step="10" value={maxPrice} onChange={(e) => setMaxPrice(parseInt(e.target.value))} style={{ width: "100%", accentColor: "#111", cursor: "pointer" }} />
+            <input type="range" min="0" max={priceLimit} step="10" value={maxPrice} onChange={(e) => setMaxPrice(parseInt(e.target.value))} style={{ width: "100%", accentColor: "#111", cursor: "pointer" }} />
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
               <span style={{ color: "#9ca3af", fontSize: "12px" }}>$0</span>
-              <span style={{ color: "#9ca3af", fontSize: "12px" }}>$500</span>
+              <span style={{ color: "#9ca3af", fontSize: "12px" }}>${priceLimit}</span>
             </div>
           </div>
 
-          {(search || category !== "all" || maxPrice < 500) && (
+          {(search || category !== "all" || maxPrice < priceLimit) && (
             <button
-              onClick={() => { setSearch(""); setCategory("all"); setMaxPrice(500); }}
+              onClick={() => { setSearch(""); setCategory("all"); setMaxPrice(priceLimit); }}
               style={{ width: "100%", background: "none", border: "1px solid #e5e7eb", color: "#6b7280", padding: "8px", cursor: "pointer", fontSize: "12px", borderRadius: "6px" }}
             >
               Clear filters
