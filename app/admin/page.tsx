@@ -10,7 +10,7 @@ import {
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/api";
 
-interface Product { id: number; name: string; price: number; color: string; status: string; image_url?: string | null; }
+interface Product { id: number; name: string; price: number; color: string; status: string; image_url?: string | null; quantity: number; }
 interface Order { id: number; title: string; client_id: number; status: string; }
 interface Client { id: number; name: string; email: string; age: number; balance: number; role?: string; }
 
@@ -34,12 +34,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ProductFilter>("all");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", price: "", color: "#000000", image_url: "", description: "" });
+  const [form, setForm] = useState({ name: "", price: "", color: "#000000", image_url: "", description: "", quantity: "0" });
   const [error, setError] = useState("");
 
   // Edit product
   const [editProductId, setEditProductId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", price: "", color: "#000000", image_url: "" });
+  const [editForm, setEditForm] = useState({ name: "", price: "", color: "#000000", image_url: "", quantity: "0" });
   const [editLoading, setEditLoading] = useState(false);
 
   // Categories
@@ -77,8 +77,8 @@ export default function AdminPage() {
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setError("");
     try {
-      await createProduct({ name: form.name, price: parseFloat(form.price), color: form.color, image_url: form.image_url || null, description: form.description || null });
-      setForm({ name: "", price: "", color: "#000000", image_url: "", description: "" });
+      await createProduct({ name: form.name, price: parseFloat(form.price), color: form.color, image_url: form.image_url || null, description: form.description || null, quantity: parseInt(form.quantity) || 0 });
+      setForm({ name: "", price: "", color: "#000000", image_url: "", description: "", quantity: "0" });
       setShowForm(false);
       const data = await authFetch("/product/admin/all?limit=100");
       setProducts(data);
@@ -103,7 +103,7 @@ export default function AdminPage() {
 
   function startEdit(product: Product) {
     setEditProductId(product.id);
-    setEditForm({ name: product.name, price: String(product.price), color: product.color, image_url: product.image_url || "" });
+    setEditForm({ name: product.name, price: String(product.price), color: product.color, image_url: product.image_url || "", quantity: String(product.quantity) });
   }
 
   async function handleEditSave(e: React.FormEvent<HTMLFormElement>) {
@@ -116,6 +116,7 @@ export default function AdminPage() {
         price: parseFloat(editForm.price),
         color: editForm.color,
         image_url: editForm.image_url || null,
+        quantity: parseInt(editForm.quantity) || 0,
       });
       setProducts((prev) => prev.map((p) => p.id === editProductId ? { ...p, ...updated } : p));
       setEditProductId(null);
@@ -347,10 +348,11 @@ export default function AdminPage() {
             {showForm && (
               <form onSubmit={handleCreate} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "24px", marginBottom: "20px" }}>
                 <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "16px" }}>New product</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 1fr", gap: "12px", alignItems: "end" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 80px 1fr", gap: "12px", alignItems: "end" }}>
                   <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Name</label><input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Product name" style={inputStyle} /></div>
                   <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Image URL</label><input type="url" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." style={inputStyle} /></div>
                   <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Price ($)</label><input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required min="0" step="0.01" placeholder="0.00" style={inputStyle} /></div>
+                  <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Stock</label><input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} min="0" placeholder="0" style={inputStyle} /></div>
                   <div>
                     <label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Color</label>
                     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -393,15 +395,15 @@ export default function AdminPage() {
             )}
 
             <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 120px 180px", padding: "12px 16px", backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["ID", "Img", "Name", "Price", "Color", "Status", "Actions"].map((h) => (
+              <div style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 60px 120px 180px", padding: "12px 16px", backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["ID", "Img", "Name", "Price", "Color", "Stock", "Status", "Actions"].map((h) => (
                   <span key={h} style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "600" }}>{h}</span>
                 ))}
               </div>
               {visibleProducts.length === 0 && <div style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}>No products</div>}
               {visibleProducts.map((product) => (
                 <div key={product.id}>
-                  <div style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 120px 180px", padding: "10px 16px", borderBottom: editProductId === product.id ? "none" : "1px solid #f3f4f6", alignItems: "center", backgroundColor: editProductId === product.id ? "#f9fafb" : "#fff" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 60px 120px 180px", padding: "10px 16px", borderBottom: editProductId === product.id ? "none" : "1px solid #f3f4f6", alignItems: "center", backgroundColor: editProductId === product.id ? "#f9fafb" : "#fff" }}>
                     <span style={{ color: "#9ca3af", fontSize: "13px" }}>#{product.id}</span>
                     <div style={{ width: "36px", height: "36px", borderRadius: "6px", overflow: "hidden", backgroundColor: "#f3f4f6" }}>
                       {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", backgroundColor: product.color }} />}
@@ -409,6 +411,7 @@ export default function AdminPage() {
                     <span style={{ fontSize: "14px", fontWeight: "600" }}>{product.name}</span>
                     <span style={{ fontSize: "13px" }}>${product.price}</span>
                     <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: product.color, border: "2px solid #e5e7eb" }} />
+                    <span style={{ fontSize: "13px", color: product.quantity === 0 ? "#dc2626" : "#16a34a", fontWeight: "600" }}>{product.quantity}</span>
                     <span style={{ display: "inline-block", backgroundColor: PRODUCT_STATUS_BG[product.status] || "#f3f4f6", color: PRODUCT_STATUS_COLOR[product.status] || "#6b7280", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "600", textTransform: "capitalize", width: "fit-content" }}>
                       {product.status}
                     </span>
@@ -424,10 +427,11 @@ export default function AdminPage() {
 
                   {editProductId === product.id && (
                     <form onSubmit={handleEditSave} style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", backgroundColor: "#f9fafb" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 1fr", gap: "12px", alignItems: "end" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 80px 1fr", gap: "12px", alignItems: "end" }}>
                         <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Name</label><input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required style={inputStyle} /></div>
                         <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Image URL</label><input type="url" value={editForm.image_url} onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })} placeholder="https://..." style={inputStyle} /></div>
                         <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Price ($)</label><input type="number" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} required min="0" step="0.01" style={inputStyle} /></div>
+                        <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Stock</label><input type="number" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })} min="0" style={inputStyle} /></div>
                         <div>
                           <label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Color</label>
                           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>

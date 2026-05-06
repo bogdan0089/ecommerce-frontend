@@ -109,12 +109,21 @@ export default function ProductPage() {
             </div>
 
             <div style={{ marginBottom: "24px" }}>
-              <p style={{ color: "#6b7280", fontSize: "13px", fontWeight: "500", marginBottom: "10px" }}>Quantity</p>
-              <div style={{ display: "flex", alignItems: "center", border: "1px solid #e5e7eb", borderRadius: "8px", width: "fit-content" }}>
-                <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: "10px 18px", fontSize: "18px", lineHeight: 1 }}>−</button>
-                <span style={{ color: "#111", fontSize: "15px", fontWeight: "700", minWidth: "36px", textAlign: "center" }}>{qty}</span>
-                <button onClick={() => setQty(Math.min(10, qty + 1))} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: "10px 18px", fontSize: "18px", lineHeight: 1 }}>+</button>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+                <p style={{ color: "#6b7280", fontSize: "13px", fontWeight: "500", margin: 0 }}>Quantity</p>
+                {product.quantity > 0 ? (
+                  <span style={{ backgroundColor: "#f0fdf4", color: "#16a34a", fontSize: "11px", fontWeight: "600", padding: "2px 8px", borderRadius: "20px" }}>In stock ({product.quantity})</span>
+                ) : (
+                  <span style={{ backgroundColor: "#fef2f2", color: "#dc2626", fontSize: "11px", fontWeight: "600", padding: "2px 8px", borderRadius: "20px" }}>Out of stock</span>
+                )}
               </div>
+              {product.quantity > 0 && (
+                <div style={{ display: "flex", alignItems: "center", border: "1px solid #e5e7eb", borderRadius: "8px", width: "fit-content" }}>
+                  <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: "10px 18px", fontSize: "18px", lineHeight: 1 }}>−</button>
+                  <span style={{ color: "#111", fontSize: "15px", fontWeight: "700", minWidth: "36px", textAlign: "center" }}>{qty}</span>
+                  <button onClick={() => setQty(Math.min(product.quantity, qty + 1))} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: "10px 18px", fontSize: "18px", lineHeight: 1 }}>+</button>
+                </div>
+              )}
             </div>
 
             <div style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "14px 18px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -124,9 +133,10 @@ export default function ProductPage() {
 
             <button
               onClick={addToCart}
-              style={{ width: "100%", backgroundColor: added ? "#16a34a" : "#111", color: "#fff", border: "none", padding: "15px", cursor: "pointer", fontWeight: "700", fontSize: "14px", borderRadius: "10px", transition: "background 0.3s", marginBottom: "10px" }}
+              disabled={product.quantity === 0}
+              style={{ width: "100%", backgroundColor: product.quantity === 0 ? "#e5e7eb" : added ? "#16a34a" : "#111", color: product.quantity === 0 ? "#9ca3af" : "#fff", border: "none", padding: "15px", cursor: product.quantity === 0 ? "not-allowed" : "pointer", fontWeight: "700", fontSize: "14px", borderRadius: "10px", transition: "background 0.3s", marginBottom: "10px" }}
             >
-              {added ? "✓ Added to cart" : inCart ? "Update cart" : "Add to cart"}
+              {product.quantity === 0 ? "Out of stock" : added ? "✓ Added to cart" : inCart ? "Update cart" : "Add to cart"}
             </button>
 
             <a href="/cart" style={{ display: "block", textAlign: "center", color: "#6b7280", fontSize: "13px", textDecoration: "none" }}>
