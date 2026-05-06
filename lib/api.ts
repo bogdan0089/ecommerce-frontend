@@ -67,6 +67,7 @@ export interface ProductCreate {
   color: string;
   image_url?: string | null;
   description?: string | null;
+  quantity?: number;
 }
 
 export async function registerClient(data: RegisterData) {
