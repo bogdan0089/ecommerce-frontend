@@ -86,10 +86,10 @@ export default function Home() {
         {/* Stats panel */}
         <div className="fade-5" style={{ backgroundColor: "#0c0c0c", border: "1px solid #141414", borderRadius: "4px", padding: "36px 32px", display: "flex", flexDirection: "column", gap: "0" }}>
           {[
-            { value: "500+", label: "Products available" },
             { value: "24h", label: "Order processing" },
             { value: "100%", label: "Secure payments" },
-            { value: "JWT", label: "Auth & encryption" },
+            { value: "REST API", label: "Full-stack project" },
+            { value: "Live", label: "Deployed on AWS" },
           ].map((s, i, arr) => (
             <div key={s.label} style={{ padding: "22px 0", borderBottom: i < arr.length - 1 ? "1px solid #111" : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ color: "#333", fontSize: "12px", letterSpacing: "1px" }}>{s.label}</span>
