@@ -11,6 +11,7 @@ interface Product {
   color: string;
   status: string;
   image_url?: string | null;
+  category?: { id: number; name: string } | null;
 }
 
 interface CartItem {
@@ -25,13 +26,6 @@ const CATEGORIES = [
   { label: "Accessories", value: "accessories", keywords: ["cap", "beanie", "bag", "hat"] },
 ];
 
-function getCategory(name: string) {
-  const lower = name.toLowerCase();
-  for (const cat of CATEGORIES.slice(1)) {
-    if (cat.keywords?.some((k) => lower.includes(k))) return cat.value;
-  }
-  return "other";
-}
 
 function getImageUrl(id: number) {
   return `https://picsum.photos/seed/product${id}/400/400`;
@@ -84,7 +78,7 @@ export default function ProductsPage() {
   useEffect(() => {
     let result = products;
     if (search) result = result.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
-    if (category !== "all") result = result.filter((p) => getCategory(p.name) === category);
+    if (category !== "all") result = result.filter((p) => (p.category?.name ?? "other").toLowerCase() === category);
     result = result.filter((p) => p.price <= maxPrice);
     setFiltered(result);
     setPage(1);
@@ -256,7 +250,7 @@ export default function ProductsPage() {
                         <p style={{ fontSize: "14px", fontWeight: "600", color: "#111" }}>{product.name}</p>
                         <p style={{ fontSize: "15px", fontWeight: "700", color: "#111", flexShrink: 0, marginLeft: "8px" }}>${product.price}</p>
                       </div>
-                      <p style={{ color: "#9ca3af", fontSize: "12px", marginBottom: "14px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{getCategory(product.name)}</p>
+                      <p style={{ color: "#9ca3af", fontSize: "12px", marginBottom: "14px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{product.category?.name ?? "other"}</p>
 
                       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                         <div style={{ display: "flex", alignItems: "center", border: "1px solid #e5e7eb", borderRadius: "6px" }}>
