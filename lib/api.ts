@@ -256,7 +256,7 @@ export async function deleteProductFromOrder(orderId: number, productId: number)
 }
 
 export async function getCategories(limit = 50, offset = 0): Promise<Category[]> {
-  return authFetch(`/category/admin?limit=${limit}&offset=${offset}`);
+  return authFetch(`/category/all?limit=${limit}&offset=${offset}`);
 }
 
 export async function createCategory(name: string): Promise<Category> {
