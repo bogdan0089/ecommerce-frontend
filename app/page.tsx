@@ -88,7 +88,7 @@ export default function Home() {
           {[
             { value: "24h", label: "Order processing" },
             { value: "100%", label: "Secure payments" },
-            { value: "REST API", label: "Full-stack project" },
+            { value: "FastAPI + Next.js", label: "Full-stack project" },
             { value: "Live", label: "Deployed on AWS" },
           ].map((s, i, arr) => (
             <div key={s.label} style={{ padding: "22px 0", borderBottom: i < arr.length - 1 ? "1px solid #111" : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
