@@ -263,7 +263,7 @@ export async function createCategory(name: string): Promise<Category> {
   return authFetch("/category/create", { method: "POST", body: JSON.stringify({ name }) });
 }
 
-export async function updateProduct(id: number, data: { name?: string; price?: number; color?: string; image_url?: string | null; quantity?: number }): Promise<Product> {
+export async function updateProduct(id: number, data: { name?: string; price?: number; color?: string; image_url?: string | null; quantity?: number; category_id?: number | null }): Promise<Product> {
   return authFetch(`/product/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 

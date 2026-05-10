@@ -10,7 +10,7 @@ import {
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/api";
 
-interface Product { id: number; name: string; price: number; color: string; status: string; image_url?: string | null; quantity: number; }
+interface Product { id: number; name: string; price: number; color: string; status: string; image_url?: string | null; quantity: number; category?: { id: number; name: string } | null; }
 interface Order { id: number; title: string; client_id: number; status: string; }
 interface Client { id: number; name: string; email: string; age: number; balance: number; role?: string; }
 
@@ -39,7 +39,7 @@ export default function AdminPage() {
 
   // Edit product
   const [editProductId, setEditProductId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", price: "", color: "#000000", image_url: "", quantity: "0" });
+  const [editForm, setEditForm] = useState({ name: "", price: "", color: "#000000", image_url: "", quantity: "0", category_id: "" });
   const [editLoading, setEditLoading] = useState(false);
 
   // Categories
@@ -103,7 +103,7 @@ export default function AdminPage() {
 
   function startEdit(product: Product) {
     setEditProductId(product.id);
-    setEditForm({ name: product.name, price: String(product.price), color: product.color, image_url: product.image_url || "", quantity: String(product.quantity) });
+    setEditForm({ name: product.name, price: String(product.price), color: product.color, image_url: product.image_url || "", quantity: String(product.quantity), category_id: String(product.category?.id || "") });
   }
 
   async function handleEditSave(e: React.FormEvent<HTMLFormElement>) {
@@ -117,6 +117,7 @@ export default function AdminPage() {
         color: editForm.color,
         image_url: editForm.image_url || null,
         quantity: parseInt(editForm.quantity) || 0,
+        category_id: editForm.category_id ? parseInt(editForm.category_id) : null,
       });
       setProducts((prev) => prev.map((p) => p.id === editProductId ? { ...p, ...updated } : p));
       setEditProductId(null);
@@ -439,6 +440,15 @@ export default function AdminPage() {
                             <input type="text" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
                           </div>
                         </div>
+                      </div>
+                      <div style={{ marginTop: "12px" }}>
+                        <label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Category</label>
+                        <select value={editForm.category_id} onChange={(e) => setEditForm({ ...editForm, category_id: e.target.value })} style={{ ...inputStyle }}>
+                          <option value="">— No category —</option>
+                          {categories.map((cat) => (
+                            <option key={cat.id} value={String(cat.id)}>{cat.name}</option>
+                          ))}
+                        </select>
                       </div>
                       <div style={{ marginTop: "14px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
                         <button type="button" onClick={() => setEditProductId(null)} style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", padding: "8px 18px", cursor: "pointer", fontSize: "13px", borderRadius: "6px" }}>Cancel</button>
