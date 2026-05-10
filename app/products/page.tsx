@@ -52,9 +52,12 @@ export default function ProductsPage() {
   const [cart, setCart] = useState<CartItem[]>(() =>
     typeof window !== "undefined" ? JSON.parse(localStorage.getItem("cart") || "[]") : []
   );
+  const [page, setPage] = useState(1);
   const [aiQuery, setAiQuery] = useState("");
   const [aiResult, setAiResult] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+
+  const PER_PAGE = 12;
 
   useEffect(() => {
     getMe()
@@ -64,7 +67,7 @@ export default function ProductsPage() {
       })
       .catch(() => setIsAdmin(false));
 
-    authFetch("/product/all?limit=50")
+    authFetch("/product/all?limit=200")
       .then((data) => {
         setProducts(data);
         setFiltered(data);
@@ -84,6 +87,7 @@ export default function ProductsPage() {
     if (category !== "all") result = result.filter((p) => getCategory(p.name) === category);
     result = result.filter((p) => p.price <= maxPrice);
     setFiltered(result);
+    setPage(1);
   }, [search, category, maxPrice, products]);
 
   function setQty(id: number, delta: number) {
@@ -233,7 +237,7 @@ export default function ProductsPage() {
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "16px" }}>
-              {filtered.map((product, i) => {
+              {filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE).map((product, i) => {
                 const inCart = cart.find((c) => c.id === product.id);
                 const qty = quantities[product.id] || 1;
                 return (
@@ -271,6 +275,28 @@ export default function ProductsPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {filtered.length > PER_PAGE && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", marginTop: "40px" }}>
+              <button
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page === 1}
+                style={{ background: "none", border: "1px solid #e5e7eb", color: page === 1 ? "#d1d5db" : "#111", cursor: page === 1 ? "not-allowed" : "pointer", padding: "8px 20px", borderRadius: "6px", fontSize: "13px", fontWeight: "600" }}
+              >
+                Previous
+              </button>
+              <span style={{ color: "#6b7280", fontSize: "13px" }}>
+                Page {page} of {Math.ceil(filtered.length / PER_PAGE)}
+              </span>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page === Math.ceil(filtered.length / PER_PAGE)}
+                style={{ background: page === Math.ceil(filtered.length / PER_PAGE) ? "none" : "#111", border: "1px solid #e5e7eb", color: page === Math.ceil(filtered.length / PER_PAGE) ? "#d1d5db" : "#fff", cursor: page === Math.ceil(filtered.length / PER_PAGE) ? "not-allowed" : "pointer", padding: "8px 20px", borderRadius: "6px", fontSize: "13px", fontWeight: "600" }}
+              >
+                Next
+              </button>
             </div>
           )}
         </main>
