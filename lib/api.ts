@@ -301,5 +301,6 @@ export async function authFetch(path: string, options: RequestInit = {}) {
     const error = await res.json();
     throw new Error(error.detail || "Request error");
   }
+  if (res.status === 204) return;
   return res.json();
 }
