@@ -132,7 +132,7 @@ export default function ProductsPage() {
       `}</style>
 
       <nav style={{ position: "sticky", top: 0, zIndex: 200, backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111" }}>SHOP</span>
+        <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</a>
 
         <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
           {userName && <span style={{ color: "#6b7280", fontSize: "13px" }}>Hi, {userName.split(" ")[0]}</span>}
