@@ -298,8 +298,13 @@ export async function authFetch(path: string, options: RequestInit = {}) {
     },
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.detail || "Request error");
+    try {
+      const error = await res.json();
+      throw new Error(error.detail || "Request error");
+    } catch (e) {
+      if (e instanceof Error && e.message !== "Request error") throw e;
+      throw new Error(`Request failed with status ${res.status}`);
+    }
   }
   if (res.status === 204) return;
   return res.json();

@@ -127,7 +127,11 @@ export default function AdminPage() {
 
   async function handleDeleteCategory(id: number) {
     if (!confirm("Delete this category?")) return;
-    try { await deleteCategory(id); setCategories((prev) => prev.filter((c) => c.id !== id)); }
+    try {
+      await deleteCategory(id);
+      const updated = await getCategories(100, 0);
+      setCategories(updated);
+    }
     catch (err: unknown) { if (err instanceof Error) setError(err.message); }
   }
 
@@ -135,8 +139,9 @@ export default function AdminPage() {
     e.preventDefault(); setCatError("");
     setCatLoading(true);
     try {
-      const cat = await createCategory(catName);
-      setCategories((prev) => [...prev, cat]);
+      await createCategory(catName);
+      const updated = await getCategories(100, 0);
+      setCategories(updated);
       setCatName("");
     } catch (err: unknown) { if (err instanceof Error) setCatError(err.message); }
     finally { setCatLoading(false); }
