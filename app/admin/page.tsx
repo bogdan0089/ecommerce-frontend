@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   authFetch, createProduct, deleteProduct, moderateProduct,
   getAdminOrders, getAdminClients, updateOrderStatus, logout,
-  getCategories, createCategory, updateProduct, generateProductDescription,
+  getCategories, createCategory, deleteCategory, updateProduct, generateProductDescription,
   Category,
 } from "@/lib/api";
 import { getAccessToken } from "@/lib/api";
@@ -125,6 +125,12 @@ export default function AdminPage() {
     finally { setEditLoading(false); }
   }
 
+  async function handleDeleteCategory(id: number) {
+    if (!confirm("Delete this category?")) return;
+    try { await deleteCategory(id); setCategories((prev) => prev.filter((c) => c.id !== id)); }
+    catch (err: unknown) { if (err instanceof Error) setError(err.message); }
+  }
+
   async function handleCreateCategory(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setCatError("");
     setCatLoading(true);
@@ -224,7 +230,10 @@ export default function AdminPage() {
                 categories.map((cat, i) => (
                   <div key={cat.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: i < categories.length - 1 ? "1px solid #f3f4f6" : "none" }}>
                     <span style={{ fontSize: "14px", fontWeight: "500" }}>{cat.name}</span>
-                    <span style={{ color: "#9ca3af", fontSize: "12px" }}>#{cat.id}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <span style={{ color: "#9ca3af", fontSize: "12px" }}>#{cat.id}</span>
+                      <button onClick={() => handleDeleteCategory(cat.id)} style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", padding: "4px 12px", cursor: "pointer", fontSize: "12px", borderRadius: "6px", fontWeight: "600" }}>Delete</button>
+                    </div>
                   </div>
                 ))
               )}
