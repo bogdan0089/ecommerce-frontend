@@ -45,7 +45,7 @@ export default function TransactionsPage() {
       const data = await getMyTransactions(limit, offset);
       if (offset === 0) setTransactions(data);
       else setTransactions((prev) => [...prev, ...data]);
-      setHasMore(data.length === limit);
+      setHasMore(data.length >= limit);
     } catch {
       router.push("/login");
     } finally {
