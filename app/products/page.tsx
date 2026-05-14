@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authFetch, getMe, logout, aiSearch } from "@/lib/api";
+import { authFetch, getMe, logout, aiSearch, getCategories } from "@/lib/api";
 
 interface Product {
   id: number;
@@ -19,12 +19,10 @@ interface CartItem {
   qty: number;
 }
 
-const CATEGORIES = [
-  { label: "All", value: "all" },
-  { label: "Footwear", value: "footwear", keywords: ["sneakers", "slides", "jordan", "yeezy", "balance", "air", "campus", "speedex", "sneaker"] },
-  { label: "Clothing", value: "clothing", keywords: ["hoodie", "tee", "jeans", "jacket", "shirt"] },
-  { label: "Accessories", value: "accessories", keywords: ["cap", "beanie", "bag", "hat"] },
-];
+interface Category {
+  id: number;
+  name: string;
+}
 
 
 function getImageUrl(id: number) {
@@ -47,6 +45,7 @@ export default function ProductsPage() {
     typeof window !== "undefined" ? JSON.parse(localStorage.getItem("cart") || "[]") : []
   );
   const [page, setPage] = useState(1);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [aiQuery, setAiQuery] = useState("");
   const [aiResult, setAiResult] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -61,10 +60,13 @@ export default function ProductsPage() {
       })
       .catch(() => setIsAdmin(false));
 
-    authFetch("/product/all?limit=200")
-      .then((data) => {
+    Promise.all([
+      authFetch("/product/all?limit=200"),
+      getCategories(100, 0),
+    ]).then(([data, cats]) => {
         setProducts(data);
         setFiltered(data);
+        setCategories(cats);
         const initQty: Record<number, number> = {};
         data.forEach((p: Product) => (initQty[p.id] = 1));
         setQuantities(initQty);
@@ -159,13 +161,19 @@ export default function ProductsPage() {
 
           <div style={{ marginBottom: "32px" }}>
             <p style={{ color: "#9ca3af", fontSize: "11px", fontWeight: "600", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "10px" }}>Category</p>
-            {CATEGORIES.map((cat) => (
+            <button
+              onClick={() => setCategory("all")}
+              style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", background: category === "all" ? "#f3f4f6" : "none", border: "none", color: category === "all" ? "#111" : "#6b7280", cursor: "pointer", fontSize: "13px", padding: "8px 10px", borderRadius: "6px", fontWeight: category === "all" ? "600" : "400" }}
+            >
+              All
+            </button>
+            {categories.map((cat) => (
               <button
-                key={cat.value}
-                onClick={() => setCategory(cat.value)}
-                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", background: category === cat.value ? "#f3f4f6" : "none", border: "none", color: category === cat.value ? "#111" : "#6b7280", cursor: "pointer", fontSize: "13px", padding: "8px 10px", borderRadius: "6px", fontWeight: category === cat.value ? "600" : "400" }}
+                key={cat.id}
+                onClick={() => setCategory(cat.name.toLowerCase())}
+                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left", background: category === cat.name.toLowerCase() ? "#f3f4f6" : "none", border: "none", color: category === cat.name.toLowerCase() ? "#111" : "#6b7280", cursor: "pointer", fontSize: "13px", padding: "8px 10px", borderRadius: "6px", fontWeight: category === cat.name.toLowerCase() ? "600" : "400" }}
               >
-                {cat.label}
+                {cat.name}
               </button>
             ))}
           </div>
