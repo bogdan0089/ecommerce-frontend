@@ -142,8 +142,6 @@ export default function AdminPage() {
       const created = await createCategory(catName);
       setCategories((prev) => [...prev, created]);
       setCatName("");
-      const updated = await getCategories(100, 0);
-      setCategories(updated);
     } catch (err: unknown) { if (err instanceof Error) setCatError(err.message); }
     finally { setCatLoading(false); }
   }
