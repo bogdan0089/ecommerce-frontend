@@ -139,10 +139,11 @@ export default function AdminPage() {
     e.preventDefault(); setCatError("");
     setCatLoading(true);
     try {
-      await createCategory(catName);
+      const created = await createCategory(catName);
+      setCategories((prev) => [...prev, created]);
+      setCatName("");
       const updated = await getCategories(100, 0);
       setCategories(updated);
-      setCatName("");
     } catch (err: unknown) { if (err instanceof Error) setCatError(err.message); }
     finally { setCatLoading(false); }
   }
