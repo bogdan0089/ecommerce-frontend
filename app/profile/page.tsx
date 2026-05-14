@@ -102,6 +102,7 @@ export default function ProfilePage() {
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [orderDetails, setOrderDetails] = useState<Record<number, OrderWithProducts>>({});
   const [orderDetailsLoading, setOrderDetailsLoading] = useState<number | null>(null);
+  const [orderDetailsError, setOrderDetailsError] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([authFetch("/client/me"), authFetch("/client/me/orders"), getMyStats()])
@@ -177,12 +178,14 @@ export default function ProfilePage() {
   async function toggleOrderDetails(orderId: number) {
     if (expandedOrder === orderId) { setExpandedOrder(null); return; }
     setExpandedOrder(orderId);
+    setOrderDetailsError(null);
     if (orderDetails[orderId]) return;
     setOrderDetailsLoading(orderId);
     try {
       const data = await getOrderWithProducts(orderId);
       setOrderDetails((prev) => ({ ...prev, [orderId]: data }));
     } catch {
+      setOrderDetailsError(orderId);
     } finally { setOrderDetailsLoading(null); }
   }
 
@@ -331,6 +334,8 @@ export default function ProfilePage() {
                           <div style={{ display: "flex", justifyContent: "center", padding: "16px" }}>
                             <div style={{ width: "20px", height: "20px", border: "2px solid #e5e7eb", borderTop: "2px solid #111", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
                           </div>
+                        ) : orderDetailsError === order.id ? (
+                          <p style={{ color: "#dc2626", fontSize: "13px" }}>Failed to load order details. Try again.</p>
                         ) : orderDetails[order.id]?.products?.length === 0 ? (
                           <p style={{ color: "#9ca3af", fontSize: "13px" }}>No products in this order</p>
                         ) : (
@@ -412,7 +417,7 @@ export default function ProfilePage() {
               <span style={{ fontWeight: "700", fontSize: "16px" }}>${client.balance.toFixed(2)}</span>
             </div>
 
-            {depositSuccess && <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>Payment successful! Refresh to see updated balance.</div>}
+            {depositSuccess && <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>Payment successful! Your balance will update shortly.</div>}
             {depositError && <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>{depositError}</div>}
 
             {!clientSecret ? (
@@ -437,7 +442,12 @@ export default function ProfilePage() {
                   <button onClick={() => setClientSecret(null)} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "13px" }}>← Back</button>
                 </div>
                 <Elements stripe={stripePromise}>
-                  <PaymentForm clientSecret={clientSecret} amount={parseFloat(depositAmount)} onSuccess={() => { setDepositSuccess(true); setClientSecret(null); setDepositAmount(""); }} />
+                  <PaymentForm clientSecret={clientSecret} amount={parseFloat(depositAmount)} onSuccess={() => {
+                    setDepositSuccess(true); setClientSecret(null); setDepositAmount("");
+                    setTimeout(async () => {
+                      try { const me = await authFetch("/client/me"); setClient(me); } catch {}
+                    }, 2000);
+                  }} />
                 </Elements>
               </div>
             )}
