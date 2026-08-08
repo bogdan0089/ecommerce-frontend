@@ -33,9 +33,14 @@ export default function CheckoutPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const total = products.reduce((sum, p) => sum + p.price * (cartItems.find((i) => i.id === p.id)?.qty || 1), 0);
-  const totalItems = cartItems.reduce((sum, i) => sum + i.qty, 0);
+  const qtyOf = (id: number) => cartItems.find((i) => i.id === id)?.qty || 1;
+  const total = products.reduce((sum, p) => sum + p.price * qtyOf(p.id), 0);
+  const totalItems = products.reduce((sum, p) => sum + qtyOf(p.id), 0);
+  // Products removed or unpublished after they landed in the cart are not in `products`,
+  // so they are neither priced here nor sent to the order.
+  const unavailableCount = cartItems.length - products.length;
   const canAfford = balance >= total;
+  const canPlaceOrder = canAfford && products.length > 0;
 
   async function handlePlaceOrder() {
     setStep("placing");
@@ -44,7 +49,10 @@ export default function CheckoutPage() {
       const date = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const order = await createOrder(`Order — ${date}`);
       setPlacingMsg("Adding products...");
-      for (const item of cartItems) await addProductToOrder(order.id, item.id, item.qty);
+      for (const product of products) {
+        const qty = qtyOf(product.id);
+        await addProductToOrder(order.id, product.id, qty);
+      }
       setPlacingMsg("Processing payment...");
       await checkoutOrder(order.id);
       localStorage.setItem("cart", "[]");
@@ -132,8 +140,13 @@ export default function CheckoutPage() {
         <div style={{ display: "flex", gap: "32px", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
             <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#374151", marginBottom: "16px" }}>Items ({totalItems})</h2>
+            {unavailableCount > 0 && (
+              <p style={{ color: "#d97706", fontSize: "13px", backgroundColor: "#fffbeb", border: "1px solid #fde68a", padding: "12px 14px", borderRadius: "8px", marginBottom: "12px" }}>
+                {unavailableCount} item{unavailableCount > 1 ? "s are" : " is"} no longer available and will not be ordered.
+              </p>
+            )}
             {products.map((product) => {
-              const qty = cartItems.find((i) => i.id === product.id)?.qty || 1;
+              const qty = qtyOf(product.id);
               return (
                 <div key={product.id} style={{ display: "flex", gap: "14px", alignItems: "center", padding: "16px", marginBottom: "10px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e5e7eb" }}>
                   <div style={{ width: "56px", height: "56px", flexShrink: 0, borderRadius: "8px", overflow: "hidden", backgroundColor: "#f3f4f6" }}>
@@ -185,8 +198,8 @@ export default function CheckoutPage() {
               )}
               <button
                 onClick={handlePlaceOrder}
-                disabled={!canAfford}
-                style={{ width: "100%", backgroundColor: canAfford ? "#111" : "#e5e7eb", color: canAfford ? "#fff" : "#9ca3af", border: "none", padding: "13px", cursor: canAfford ? "pointer" : "not-allowed", fontWeight: "600", fontSize: "14px", borderRadius: "8px" }}
+                disabled={!canPlaceOrder}
+                style={{ width: "100%", backgroundColor: canPlaceOrder ? "#111" : "#e5e7eb", color: canPlaceOrder ? "#fff" : "#9ca3af", border: "none", padding: "13px", cursor: canPlaceOrder ? "pointer" : "not-allowed", fontWeight: "600", fontSize: "14px", borderRadius: "8px" }}
               >
                 Place order
               </button>
