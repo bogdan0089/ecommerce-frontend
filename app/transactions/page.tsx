@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getMyTransactions, Transaction } from "@/lib/api";
 
@@ -64,10 +65,10 @@ export default function TransactionsPage() {
       <style>{`* { box-sizing: border-box; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</a>
+        <Link href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
         <div style={{ display: "flex", gap: "24px", alignItems: "center" }}>
-          <a href="/profile" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← Profile</a>
-          <a href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>Products</a>
+          <Link href="/profile" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← Profile</Link>
+          <Link href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>Products</Link>
         </div>
       </nav>
 
@@ -96,7 +97,7 @@ export default function TransactionsPage() {
         ) : transactions.length === 0 ? (
           <div style={{ textAlign: "center", padding: "80px 0" }}>
             <p style={{ color: "#9ca3af", fontSize: "16px", marginBottom: "24px" }}>No transactions yet</p>
-            <a href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>Start shopping</a>
+            <Link href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>Start shopping</Link>
           </div>
         ) : (
           <div style={{ backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", overflow: "hidden" }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authFetch, getMe, createOrder, addProductToOrder, checkoutOrder, cancelOrder } from "@/lib/api";
 
@@ -126,7 +127,7 @@ export default function CheckoutPage() {
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
       <div style={{ textAlign: "center" }}>
         <p style={{ color: "#9ca3af", fontSize: "16px", marginBottom: "24px" }}>Your cart is empty</p>
-        <a href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>Go shopping</a>
+        <Link href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>Go shopping</Link>
       </div>
     </div>
   );
@@ -136,8 +137,8 @@ export default function CheckoutPage() {
       <style>{`* { box-sizing: border-box; }`}</style>
 
       <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</a>
-        <a href="/cart" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← Back to cart</a>
+        <Link href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
+        <Link href="/cart" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← Back to cart</Link>
       </nav>
 
       <main style={{ maxWidth: "800px", margin: "0 auto", padding: "48px 40px" }}>
@@ -200,7 +201,7 @@ export default function CheckoutPage() {
               </div>
               {!canAfford && (
                 <p style={{ color: "#dc2626", fontSize: "12px", textAlign: "center", marginBottom: "12px" }}>
-                  Not enough balance. <a href="/profile" style={{ color: "#dc2626", fontWeight: "600" }}>Deposit funds →</a>
+                  Not enough balance. <Link href="/profile" style={{ color: "#dc2626", fontWeight: "600" }}>Deposit funds →</Link>
                 </p>
               )}
               <button

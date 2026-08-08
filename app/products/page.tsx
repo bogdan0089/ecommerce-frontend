@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authFetch, getMe, logout, aiSearch, getCategories } from "@/lib/api";
 
@@ -132,12 +133,12 @@ export default function ProductsPage() {
       `}</style>
 
       <nav style={{ position: "sticky", top: 0, zIndex: 200, backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</a>
+        <Link href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
 
         <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
           {userName && <span style={{ color: "#6b7280", fontSize: "13px" }}>Hi, {userName.split(" ")[0]}</span>}
-          {isAdmin === true && <a href="/admin" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none", fontWeight: "500" }}>Admin</a>}
-          <a href="/profile" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none", fontWeight: "500" }}>Profile</a>
+          {isAdmin === true && <Link href="/admin" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none", fontWeight: "500" }}>Admin</Link>}
+          <Link href="/profile" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none", fontWeight: "500" }}>Profile</Link>
           <button onClick={() => router.push("/cart")} style={{ position: "relative", background: "#111", border: "none", color: "#fff", padding: "8px 20px", cursor: "pointer", fontSize: "13px", fontWeight: "600", borderRadius: "6px", display: "flex", alignItems: "center", gap: "8px" }}>
             Cart
             {cartCount > 0 && <span style={{ backgroundColor: "#fff", color: "#111", borderRadius: "50%", width: "18px", height: "18px", fontSize: "10px", fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}
@@ -244,14 +245,14 @@ export default function ProductsPage() {
                 const qty = quantities[product.id] || 1;
                 return (
                   <div key={product.id} className="card" style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", overflow: "hidden", animationDelay: `${i * 0.04}s` }}>
-                    <a href={`/products/${product.id}`} style={{ display: "block", overflow: "hidden", aspectRatio: "1", backgroundColor: "#f9fafb", textDecoration: "none" }}>
+                    <Link href={`/products/${product.id}`} style={{ display: "block", overflow: "hidden", aspectRatio: "1", backgroundColor: "#f9fafb", textDecoration: "none" }}>
                       <img
                         src={product.image_url || getImageUrl(product.id)}
                         alt={product.name}
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).parentElement!.style.backgroundColor = product.color; }}
                       />
-                    </a>
+                    </Link>
 
                     <div style={{ padding: "16px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "4px" }}>

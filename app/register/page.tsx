@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { registerClient } from "@/lib/api";
 
 export default function RegisterPage() {
@@ -31,7 +32,7 @@ export default function RegisterPage() {
   if (success) {
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-        <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</a>
+        <Link href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</Link>
         <div style={{ textAlign: "center", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "48px 40px" }}>
           <div style={{ width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
             <span style={{ color: "#16a34a", fontSize: "24px" }}>✓</span>
@@ -40,9 +41,9 @@ export default function RegisterPage() {
           <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "32px" }}>
             We sent a confirmation link to <strong style={{ color: "#111" }}>{form.email}</strong>. Click it to activate your account.
           </p>
-          <a href="/login" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>
+          <Link href="/login" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>
             Go to login
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -52,7 +53,7 @@ export default function RegisterPage() {
     <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
       <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; } input:focus { border-color: #111 !important; outline: none; } input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }`}</style>
 
-      <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</a>
+      <Link href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</Link>
 
       <div style={{ width: "100%", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "40px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#111", marginBottom: "4px" }}>Create account</h1>
@@ -97,7 +98,7 @@ export default function RegisterPage() {
 
         <p style={{ textAlign: "center", marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
           Already have an account?{" "}
-          <a href="/login" style={{ color: "#111", textDecoration: "none", fontWeight: "600" }}>Log in</a>
+          <Link href="/login" style={{ color: "#111", textDecoration: "none", fontWeight: "600" }}>Log in</Link>
         </p>
       </div>
     </div>

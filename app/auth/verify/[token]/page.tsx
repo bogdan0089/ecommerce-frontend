@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { verifyEmail } from "@/lib/api";
 
@@ -24,7 +25,7 @@ export default function VerifyEmailPage() {
     <div style={{ minHeight: "100vh", backgroundColor: "#080808", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-      <a href="/" style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px", color: "#fff", textDecoration: "none", marginBottom: "56px" }}>SHOP</a>
+      <Link href="/" style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px", color: "#fff", textDecoration: "none", marginBottom: "56px" }}>SHOP</Link>
 
       <div style={{ textAlign: "center", maxWidth: "400px" }}>
         {status === "loading" && (
@@ -42,9 +43,9 @@ export default function VerifyEmailPage() {
             <p style={{ color: "#444", fontSize: "11px", letterSpacing: "3px", marginBottom: "12px" }}>EMAIL VERIFIED</p>
             <h1 style={{ fontSize: "32px", fontWeight: "800", letterSpacing: "-1px", marginBottom: "12px" }}>You're in!</h1>
             <p style={{ color: "#555", fontSize: "14px", marginBottom: "40px" }}>Your email has been confirmed. You can now log in.</p>
-            <a href="/login" style={{ backgroundColor: "#fff", color: "#000", padding: "14px 40px", fontSize: "11px", letterSpacing: "3px", textDecoration: "none", fontWeight: "800", borderRadius: "2px" }}>
+            <Link href="/login" style={{ backgroundColor: "#fff", color: "#000", padding: "14px 40px", fontSize: "11px", letterSpacing: "3px", textDecoration: "none", fontWeight: "800", borderRadius: "2px" }}>
               GO TO LOGIN
-            </a>
+            </Link>
           </>
         )}
 
@@ -58,9 +59,9 @@ export default function VerifyEmailPage() {
             <p style={{ color: "#dc2626", fontSize: "13px", backgroundColor: "#dc262610", padding: "12px 16px", borderRadius: "2px", marginBottom: "40px" }}>
               {error}
             </p>
-            <a href="/register" style={{ color: "#555", fontSize: "11px", letterSpacing: "2px", textDecoration: "none", border: "1px solid #222", padding: "12px 32px" }}>
+            <Link href="/register" style={{ color: "#555", fontSize: "11px", letterSpacing: "2px", textDecoration: "none", border: "1px solid #222", padding: "12px 32px" }}>
               REGISTER AGAIN
-            </a>
+            </Link>
           </>
         )}
       </div>

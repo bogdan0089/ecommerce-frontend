@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { loginClient, saveTokens } from "@/lib/api";
 
@@ -29,7 +30,7 @@ export default function LoginPage() {
     <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
       <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; } input:focus { border-color: #111 !important; outline: none; }`}</style>
 
-      <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</a>
+      <Link href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</Link>
 
       <div style={{ width: "100%", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "40px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#111", marginBottom: "4px" }}>Welcome back</h1>
@@ -56,7 +57,7 @@ export default function LoginPage() {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
               <label style={{ color: "#374151", fontSize: "13px", fontWeight: "500" }}>Password</label>
-              <a href="/forgot-password" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none" }}>Forgot password?</a>
+              <Link href="/forgot-password" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none" }}>Forgot password?</Link>
             </div>
             <input
               type="password"
@@ -79,7 +80,7 @@ export default function LoginPage() {
 
         <p style={{ textAlign: "center", marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
           No account?{" "}
-          <a href="/register" style={{ color: "#111", textDecoration: "none", fontWeight: "600" }}>Sign up</a>
+          <Link href="/register" style={{ color: "#111", textDecoration: "none", fontWeight: "600" }}>Sign up</Link>
         </p>
       </div>
     </div>

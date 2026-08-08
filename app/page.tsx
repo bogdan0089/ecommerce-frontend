@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { getAccessToken } from "@/lib/api";
 
 export default function Home() {
@@ -36,16 +37,16 @@ export default function Home() {
       <nav style={{ position: "sticky", top: 0, zIndex: 100, backgroundColor: "rgba(8,8,8,0.92)", backdropFilter: "blur(20px)", borderBottom: "1px solid #111", padding: "0 48px", height: "60px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: "14px", fontWeight: "800", letterSpacing: "6px" }}>SHOP</span>
         <div style={{ display: "flex", gap: "32px", alignItems: "center" }}>
-          <a href="/products" style={{ color: "#444", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>PRODUCTS</a>
+          <Link href="/products" style={{ color: "#444", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>PRODUCTS</Link>
           {isLoggedIn ? (
             <>
-              <a href="/profile" style={{ color: "#444", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>PROFILE</a>
-              <a href="/cart" style={{ backgroundColor: "#fff", color: "#000", padding: "8px 22px", fontSize: "11px", letterSpacing: "2px", textDecoration: "none", fontWeight: "800", borderRadius: "2px" }}>CART</a>
+              <Link href="/profile" style={{ color: "#444", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>PROFILE</Link>
+              <Link href="/cart" style={{ backgroundColor: "#fff", color: "#000", padding: "8px 22px", fontSize: "11px", letterSpacing: "2px", textDecoration: "none", fontWeight: "800", borderRadius: "2px" }}>CART</Link>
             </>
           ) : (
             <>
-              <a href="/login" style={{ color: "#444", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>LOGIN</a>
-              <a href="/register" style={{ backgroundColor: "#fff", color: "#000", padding: "8px 22px", fontSize: "11px", letterSpacing: "2px", textDecoration: "none", fontWeight: "800", borderRadius: "2px" }}>SIGN UP</a>
+              <Link href="/login" style={{ color: "#444", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>LOGIN</Link>
+              <Link href="/register" style={{ backgroundColor: "#fff", color: "#000", padding: "8px 22px", fontSize: "11px", letterSpacing: "2px", textDecoration: "none", fontWeight: "800", borderRadius: "2px" }}>SIGN UP</Link>
             </>
           )}
         </div>
@@ -72,13 +73,13 @@ export default function Home() {
             </p>
           </div>
           <div className="fade-4" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-            <a href="/products" className="btn-primary" style={{ backgroundColor: "#fff", color: "#000", padding: "15px 40px", fontSize: "11px", letterSpacing: "3px", textDecoration: "none", fontWeight: "800", borderRadius: "2px" }}>
+            <Link href="/products" className="btn-primary" style={{ backgroundColor: "#fff", color: "#000", padding: "15px 40px", fontSize: "11px", letterSpacing: "3px", textDecoration: "none", fontWeight: "800", borderRadius: "2px" }}>
               SHOP NOW
-            </a>
+            </Link>
             {!isLoggedIn && (
-              <a href="/register" className="btn-secondary" style={{ background: "none", color: "#444", border: "1px solid #1a1a1a", padding: "15px 40px", fontSize: "11px", letterSpacing: "3px", textDecoration: "none", fontWeight: "600", borderRadius: "2px" }}>
+              <Link href="/register" className="btn-secondary" style={{ background: "none", color: "#444", border: "1px solid #1a1a1a", padding: "15px 40px", fontSize: "11px", letterSpacing: "3px", textDecoration: "none", fontWeight: "600", borderRadius: "2px" }}>
                 CREATE ACCOUNT
-              </a>
+              </Link>
             )}
           </div>
         </div>
@@ -106,7 +107,7 @@ export default function Home() {
       <section style={{ maxWidth: "1100px", margin: "0 auto", padding: "80px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "48px" }}>
           <p style={{ color: "#222", fontSize: "11px", letterSpacing: "5px" }}>WHY SHOP WITH US</p>
-          <a href="/products" style={{ color: "#333", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>VIEW ALL →</a>
+          <Link href="/products" style={{ color: "#333", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>VIEW ALL →</Link>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1px", backgroundColor: "#111" }}>
           {[
@@ -142,9 +143,9 @@ export default function Home() {
             <p style={{ color: "#222", fontSize: "11px", letterSpacing: "4px", marginBottom: "16px" }}>READY TO START?</p>
             <h2 style={{ fontSize: "clamp(32px, 4vw, 52px)", fontWeight: "800", letterSpacing: "-2px", lineHeight: "1.1" }}>Browse the collection.</h2>
           </div>
-          <a href="/products" className="btn-primary" style={{ backgroundColor: "#fff", color: "#000", padding: "18px 52px", fontSize: "11px", letterSpacing: "3px", textDecoration: "none", fontWeight: "800", borderRadius: "2px", flexShrink: 0, display: "block" }}>
+          <Link href="/products" className="btn-primary" style={{ backgroundColor: "#fff", color: "#000", padding: "18px 52px", fontSize: "11px", letterSpacing: "3px", textDecoration: "none", fontWeight: "800", borderRadius: "2px", flexShrink: 0, display: "block" }}>
             VIEW ALL PRODUCTS
-          </a>
+          </Link>
         </div>
       </section>
 
@@ -152,9 +153,9 @@ export default function Home() {
       <footer style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
         <span style={{ fontSize: "13px", fontWeight: "800", letterSpacing: "5px" }}>SHOP</span>
         <div style={{ display: "flex", gap: "32px" }}>
-          <a href="/products" style={{ color: "#222", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>PRODUCTS</a>
-          <a href="/login" style={{ color: "#222", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>LOGIN</a>
-          <a href="/register" style={{ color: "#222", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>REGISTER</a>
+          <Link href="/products" style={{ color: "#222", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>PRODUCTS</Link>
+          <Link href="/login" style={{ color: "#222", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>LOGIN</Link>
+          <Link href="/register" style={{ color: "#222", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>REGISTER</Link>
         </div>
         <p style={{ color: "#1a1a1a", fontSize: "11px" }}>© 2025 SHOP. ALL RIGHTS RESERVED.</p>
       </footer>
