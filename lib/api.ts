@@ -77,8 +77,7 @@ export async function registerClient(data: RegisterData) {
     body: JSON.stringify(data),
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.detail || "Registration error");
+    throw new Error(await readErrorDetail(res));
   }
   return res.json();
 }
@@ -93,8 +92,7 @@ export async function loginClient(data: LoginData): Promise<TokenResponse> {
     body: formData.toString(),
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.detail || "Login error");
+    throw new Error(await readErrorDetail(res));
   }
   return res.json();
 }
@@ -106,8 +104,7 @@ export async function forgotPassword(email: string): Promise<void> {
     body: JSON.stringify({ email }),
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.detail || "Error");
+    throw new Error(await readErrorDetail(res));
   }
 }
 
@@ -118,16 +115,14 @@ export async function resetPassword(reset_token: string, new_password: string): 
     body: JSON.stringify({ reset_token, new_password }),
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.detail || "Error");
+    throw new Error(await readErrorDetail(res));
   }
 }
 
 export async function verifyEmail(token: string): Promise<void> {
   const res = await fetch(`${API_URL}/auth/verify/${token}`);
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.detail || "Verification failed");
+    throw new Error(await readErrorDetail(res));
   }
 }
 
@@ -287,6 +282,25 @@ export async function generateProductDescription(product_name: string): Promise<
   return authFetch("/ai/generate-description", { method: "POST", body: JSON.stringify({ product_name }) });
 }
 
+// FastAPI returns {detail: string} for app errors and {detail: [...]} for validation
+// errors, but a gateway failure returns HTML — never let that surface as a JSON
+// parse error instead of the real status.
+async function readErrorDetail(res: Response): Promise<string> {
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    return `Request failed with status ${res.status}`;
+  }
+  const detail = (body as { detail?: unknown })?.detail;
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0] as { msg?: string };
+    if (typeof first?.msg === "string") return first.msg;
+  }
+  return `Request failed with status ${res.status}`;
+}
+
 export async function authFetch(path: string, options: RequestInit = {}) {
   const token = getAccessToken();
   const res = await fetch(`${API_URL}${path}`, {
@@ -298,13 +312,7 @@ export async function authFetch(path: string, options: RequestInit = {}) {
     },
   });
   if (!res.ok) {
-    try {
-      const error = await res.json();
-      throw new Error(error.detail || "Request error");
-    } catch (e) {
-      if (e instanceof Error && e.message !== "Request error") throw e;
-      throw new Error(`Request failed with status ${res.status}`);
-    }
+    throw new Error(await readErrorDetail(res));
   }
   if (res.status === 204) return;
   return res.json();
