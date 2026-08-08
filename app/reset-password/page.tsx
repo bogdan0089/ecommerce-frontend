@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resetPassword } from "@/lib/api";
 
@@ -124,7 +125,7 @@ export default function ResetPasswordPage() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#080808", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
       <style>{`input::placeholder { color: #333; }`}</style>
-      <a href="/" style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px", color: "#fff", textDecoration: "none", marginBottom: "56px" }}>SHOP</a>
+      <Link href="/" style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px", color: "#fff", textDecoration: "none", marginBottom: "56px" }}>SHOP</Link>
       <div style={{ width: "100%", maxWidth: "400px" }}>
         <Suspense fallback={<p style={{ color: "#444" }}>Loading...</p>}>
           <ResetPasswordForm />

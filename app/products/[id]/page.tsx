@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getProduct, Product } from "@/lib/api";
 
@@ -57,9 +58,9 @@ export default function ProductPage() {
       <style>{`* { box-sizing: border-box; }`}</style>
 
       <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</a>
+        <Link href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
         <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-          <a href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← All products</a>
+          <Link href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← All products</Link>
           <button onClick={() => router.push("/cart")} style={{ position: "relative", background: "#111", border: "none", color: "#fff", padding: "8px 20px", cursor: "pointer", fontSize: "13px", fontWeight: "600", borderRadius: "6px", display: "flex", alignItems: "center", gap: "8px" }}>
             Cart
             {cartCount > 0 && <span style={{ backgroundColor: "#fff", color: "#111", borderRadius: "50%", width: "18px", height: "18px", fontSize: "10px", fontWeight: "800", display: "flex", alignItems: "center", justifyContent: "center" }}>{cartCount}</span>}
@@ -69,7 +70,7 @@ export default function ProductPage() {
 
       <main style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 40px" }}>
         <p style={{ color: "#9ca3af", fontSize: "13px", marginBottom: "32px" }}>
-          <a href="/products" style={{ color: "#9ca3af", textDecoration: "none" }}>Products</a>
+          <Link href="/products" style={{ color: "#9ca3af", textDecoration: "none" }}>Products</Link>
           {" / "}
           <span style={{ color: "#111" }}>{product.name}</span>
         </p>
@@ -139,9 +140,9 @@ export default function ProductPage() {
               {product.quantity === 0 ? "Out of stock" : added ? "✓ Added to cart" : inCart ? "Update cart" : "Add to cart"}
             </button>
 
-            <a href="/cart" style={{ display: "block", textAlign: "center", color: "#6b7280", fontSize: "13px", textDecoration: "none" }}>
+            <Link href="/cart" style={{ display: "block", textAlign: "center", color: "#6b7280", fontSize: "13px", textDecoration: "none" }}>
               View cart →
-            </a>
+            </Link>
 
             <div style={{ marginTop: "36px", borderTop: "1px solid #e5e7eb", paddingTop: "24px", display: "flex", flexDirection: "column", gap: "12px" }}>
               {[

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authFetch } from "@/lib/api";
 
@@ -67,8 +68,8 @@ export default function CartPage() {
       <style>{`* { box-sizing: border-box; }`}</style>
 
       <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</a>
-        <a href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← Back to shop</a>
+        <Link href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
+        <Link href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← Back to shop</Link>
       </nav>
 
       <main style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 40px" }}>
@@ -82,9 +83,9 @@ export default function CartPage() {
         {products.length === 0 ? (
           <div style={{ textAlign: "center", padding: "80px 0" }}>
             <p style={{ color: "#9ca3af", fontSize: "16px", marginBottom: "24px" }}>Your cart is empty</p>
-            <a href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>
+            <Link href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>
               Continue shopping
-            </a>
+            </Link>
           </div>
         ) : (
           <div style={{ display: "flex", gap: "32px", alignItems: "flex-start" }}>
@@ -139,9 +140,9 @@ export default function CartPage() {
                 >
                   Checkout
                 </button>
-                <a href="/products" style={{ display: "block", textAlign: "center", color: "#6b7280", fontSize: "13px", textDecoration: "none", marginTop: "14px" }}>
+                <Link href="/products" style={{ display: "block", textAlign: "center", color: "#6b7280", fontSize: "13px", textDecoration: "none", marginTop: "14px" }}>
                   Continue shopping
-                </a>
+                </Link>
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
@@ -218,10 +219,10 @@ export default function ProfilePage() {
       <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; } input:focus { border-color: #111 !important; outline: none; }`}</style>
 
       <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</a>
+        <Link href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
         <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-          <a href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>Products</a>
-          <a href="/transactions" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>Transactions</a>
+          <Link href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>Products</Link>
+          <Link href="/transactions" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>Transactions</Link>
           <button onClick={() => { logout(); router.push("/login"); }} style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", cursor: "pointer", fontSize: "13px", padding: "7px 16px", borderRadius: "6px" }}>Logout</button>
         </div>
       </nav>
@@ -288,9 +289,9 @@ export default function ProfilePage() {
                 { label: "View Cart", href: "/cart" },
                 { label: "Transaction History", href: "/transactions" },
               ].map((item) => (
-                <a key={item.label} href={item.href} style={{ color: "#374151", fontSize: "14px", textDecoration: "none", padding: "10px 0", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Link key={item.label} href={item.href} style={{ color: "#374151", fontSize: "14px", textDecoration: "none", padding: "10px 0", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   {item.label} <span style={{ color: "#9ca3af" }}>→</span>
-                </a>
+                </Link>
               ))}
               <button onClick={() => setActiveTab("orders")} style={{ background: "none", border: "none", color: "#374151", fontSize: "14px", textAlign: "left", cursor: "pointer", padding: "10px 0", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                 My orders ({orders.length}) <span style={{ color: "#9ca3af" }}>→</span>
@@ -304,7 +305,7 @@ export default function ProfilePage() {
             {orders.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 0" }}>
                 <p style={{ color: "#9ca3af", fontSize: "16px", marginBottom: "20px" }}>No orders yet</p>
-                <a href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "11px 28px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>Start shopping</a>
+                <Link href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "11px 28px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>Start shopping</Link>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   authFetch, createProduct, deleteProduct, moderateProduct,
@@ -186,7 +187,7 @@ export default function AdminPage() {
       )}
 
       <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <a href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</a>
+        <Link href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
         <span style={{ color: "#9ca3af", fontSize: "13px", fontWeight: "500" }}>Admin Panel</span>
         <button onClick={() => { logout(); router.push("/login"); }} style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", padding: "7px 16px", cursor: "pointer", fontSize: "13px", borderRadius: "6px" }}>Logout</button>
       </nav>

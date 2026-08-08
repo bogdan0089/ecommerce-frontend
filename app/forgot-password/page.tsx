@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { forgotPassword } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
@@ -38,7 +39,7 @@ export default function ForgotPasswordPage() {
     <div style={{ minHeight: "100vh", backgroundColor: "#080808", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
       <style>{`input::placeholder { color: #333; }`}</style>
 
-      <a href="/" style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px", color: "#fff", textDecoration: "none", marginBottom: "56px" }}>SHOP</a>
+      <Link href="/" style={{ fontSize: "15px", fontWeight: "800", letterSpacing: "5px", color: "#fff", textDecoration: "none", marginBottom: "56px" }}>SHOP</Link>
 
       <div style={{ width: "100%", maxWidth: "400px" }}>
         {sent ? (
@@ -51,7 +52,7 @@ export default function ForgotPasswordPage() {
             <p style={{ color: "#555", fontSize: "14px", marginBottom: "40px" }}>
               We sent a reset link to <strong style={{ color: "#fff" }}>{email}</strong>
             </p>
-            <a href="/login" style={{ color: "#555", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>← BACK TO LOGIN</a>
+            <Link href="/login" style={{ color: "#555", fontSize: "11px", letterSpacing: "2px", textDecoration: "none" }}>← BACK TO LOGIN</Link>
           </div>
         ) : (
           <>
@@ -89,7 +90,7 @@ export default function ForgotPasswordPage() {
 
             <p style={{ textAlign: "center", marginTop: "32px", color: "#333", fontSize: "13px" }}>
               Remember your password?{" "}
-              <a href="/login" style={{ color: "#fff", textDecoration: "none", fontWeight: "600" }}>Log in</a>
+              <Link href="/login" style={{ color: "#fff", textDecoration: "none", fontWeight: "600" }}>Log in</Link>
             </p>
           </>
         )}
