@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authFetch, getMe, createOrder, addProductToOrder, checkoutOrder } from "@/lib/api";
+import { authFetch, getMe, createOrder, addProductToOrder, checkoutOrder, cancelOrder } from "@/lib/api";
 
 interface Product { id: number; name: string; price: number; color: string; image_url?: string | null; }
 interface CartItem { id: number; qty: number; }
@@ -44,10 +44,12 @@ export default function CheckoutPage() {
 
   async function handlePlaceOrder() {
     setStep("placing");
+    let draftOrderId: number | null = null;
     try {
       setPlacingMsg("Creating order...");
       const date = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const order = await createOrder(`Order — ${date}`);
+      draftOrderId = order.id;
       setPlacingMsg("Adding products...");
       for (const product of products) {
         const qty = qtyOf(product.id);
@@ -55,9 +57,14 @@ export default function CheckoutPage() {
       }
       setPlacingMsg("Processing payment...");
       await checkoutOrder(order.id);
+      draftOrderId = null;
       localStorage.setItem("cart", "[]");
       setStep("success");
     } catch (err: unknown) {
+      // Drop the half-built order so a retry does not leave drafts behind.
+      if (draftOrderId !== null) {
+        try { await cancelOrder(draftOrderId); } catch { /* nothing left to clean up */ }
+      }
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
       setStep("error");
     }

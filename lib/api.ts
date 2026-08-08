@@ -213,6 +213,10 @@ export async function checkoutOrder(orderId: number): Promise<Order> {
   return authFetch(`/order/${orderId}/checkout`, { method: "POST" });
 }
 
+export async function cancelOrder(orderId: number): Promise<void> {
+  return authFetch(`/order/${orderId}/refund`, { method: "POST" });
+}
+
 export interface Category {
   id: number;
   name: string;
