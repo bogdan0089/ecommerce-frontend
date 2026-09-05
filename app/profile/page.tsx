@@ -192,7 +192,7 @@ export default function ProfilePage() {
       setDepositError(err instanceof Error ? err.message : "Error");
     } finally {
       setDemoLoading(false);
-    }11
+    }
   }
 
   async function handleDeposit() {
