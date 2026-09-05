@@ -13,6 +13,7 @@ import {
   createPaymentIntent,
   deleteClient,
   deleteProductFromOrder,
+  depositBalance,
   getAiRecommendations,
   getMe,
   getMyOrders,
@@ -114,8 +115,9 @@ export default function ProfilePage() {
 
   const [depositAmount, setDepositAmount] = useState("");
   const [depositLoading, setDepositLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [depositError, setDepositError] = useState("");
-  const [depositSuccess, setDepositSuccess] = useState(false);
+  const [depositSuccess, setDepositSuccess] = useState("");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   const [pwForm, setPwForm] = useState({ old_password: "", new_password: "", confirm: "" });
@@ -175,6 +177,22 @@ export default function ProfilePage() {
     } finally {
       setPwLoading(false);
     }
+  }
+
+  async function handleDemoTopUp() {
+    if (!client) return;
+    setDemoLoading(true);
+    setDepositError("");
+    try {
+      const updated = await depositBalance(client.id, 100);
+      setClient((prev) => (prev ? { ...prev, balance: updated.balance } : prev));
+      setDepositSuccess("Balance topped up. No payment was taken.");
+      setTimeout(() => setDepositSuccess(""), 4000);
+    } catch (err: unknown) {
+      setDepositError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setDemoLoading(false);
+    }11
   }
 
   async function handleDeposit() {
@@ -492,7 +510,7 @@ export default function ProfilePage() {
           )}
           {depositSuccess && (
             <Alert tone="success" style={{ marginBottom: "16px" }}>
-              Payment successful. Your balance will update shortly.
+              {depositSuccess}
             </Alert>
           )}
           {depositError && <Alert style={{ marginBottom: "16px" }}>{depositError}</Alert>}
@@ -528,6 +546,19 @@ export default function ProfilePage() {
               <Button type="submit" size="lg" full disabled={depositLoading || !stripePromise}>
                 {depositLoading ? "Processing..." : "Continue to payment"}
               </Button>
+
+              <div style={{ borderTop: `1px solid ${color.borderSoft}`, marginTop: "20px", paddingTop: "20px" }}>
+                <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: color.textDim, marginBottom: "8px" }}>
+                  Demo top-up
+                </p>
+                <p style={{ color: color.textDim, fontSize: "12px", lineHeight: 1.6, marginBottom: "12px" }}>
+                  This is a portfolio project, so the balance can also be credited without a real card. Use it to try
+                  the cart and checkout. No money moves.
+                </p>
+                <Button type="button" variant="secondary" full onClick={handleDemoTopUp} disabled={demoLoading}>
+                  {demoLoading ? "Adding..." : "Add $100 for testing"}
+                </Button>
+              </div>
             </form>
           ) : (
             <div>
@@ -545,7 +576,7 @@ export default function ProfilePage() {
                     clientSecret={clientSecret}
                     amount={parseFloat(depositAmount)}
                     onSuccess={() => {
-                      setDepositSuccess(true);
+                      setDepositSuccess("Payment successful. Your balance will update shortly.");
                       setClientSecret(null);
                       setDepositAmount("");
                       setTimeout(() => {
