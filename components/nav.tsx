@@ -8,7 +8,7 @@ import { logout } from "@/lib/api";
 import { notifyAuthChange } from "@/lib/useAuth";
 import { cartCount, useCart } from "@/lib/cart";
 
-export function Wordmark({ href = "/", style }: { href?: string; style?: CSSProperties }) {
+function Wordmark({ href = "/", style }: { href?: string; style?: CSSProperties }) {
   return (
     <Link
       href={href}
