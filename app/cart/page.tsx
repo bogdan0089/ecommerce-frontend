@@ -3,151 +3,153 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { authFetch } from "@/lib/api";
-
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  color: string;
-  image_url?: string | null;
-}
-
-interface CartItem {
-  id: number;
-  qty: number;
-}
+import { getProducts, Product } from "@/lib/api";
+import { cartCount, clearCart, useCart, writeCart } from "@/lib/cart";
+import { Nav, NavLink, Page } from "@/components/nav";
+import { Button, Card, EmptyState, LinkButton, PageLoader, PageTitle } from "@/components/ui";
+import { color, radius } from "@/lib/theme";
 
 export default function CartPage() {
   const router = useRouter();
+  const cart = useCart();
   const [products, setProducts] = useState<Product[]>([]);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const items: CartItem[] = JSON.parse(localStorage.getItem("cart") || "[]");
-    setCartItems(items);
-    if (items.length === 0) { setLoading(false); return; }
-    authFetch("/product/all?limit=100")
-      .then((all: Product[]) => setProducts(all.filter((p) => items.some((i) => i.id === p.id))))
+    getProducts(100)
+      .then(setProducts)
+      .catch(() => setProducts([]))
       .finally(() => setLoading(false));
   }, []);
 
+  const lines = cart
+    .map((item) => ({ item, product: products.find((p) => p.id === item.id) }))
+    .filter((line): line is { item: { id: number; qty: number }; product: Product } => line.product !== undefined);
+
+  const total = lines.reduce((sum, line) => sum + line.product.price * line.item.qty, 0);
+  const totalItems = cartCount(cart);
+
   function updateQty(id: number, delta: number) {
-    const updated = cartItems.map((i) => i.id === id ? { ...i, qty: i.qty + delta } : i).filter((i) => i.qty > 0);
-    setCartItems(updated);
-    localStorage.setItem("cart", JSON.stringify(updated));
-    if (!updated.find((i) => i.id === id)) setProducts(products.filter((p) => p.id !== id));
+    writeCart(cart.map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0));
   }
 
   function removeItem(id: number) {
-    const updated = cartItems.filter((i) => i.id !== id);
-    setCartItems(updated);
-    setProducts(products.filter((p) => p.id !== id));
-    localStorage.setItem("cart", JSON.stringify(updated));
+    writeCart(cart.filter((i) => i.id !== id));
   }
 
-  function clearCart() {
-    setCartItems([]); setProducts([]); localStorage.setItem("cart", "[]");
-  }
+  if (loading) return <PageLoader />;
 
-  const total = products.reduce((sum, p) => sum + p.price * (cartItems.find((i) => i.id === p.id)?.qty || 1), 0);
-  const totalItems = cartItems.reduce((sum, i) => sum + i.qty, 0);
-
-  if (loading) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <div style={{ width: "32px", height: "32px", border: "2px solid #e5e7eb", borderTop: "2px solid #111", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      </div>
-    );
-  }
+  const nav = (
+    <Nav home="/products">
+      <NavLink href="/products">← Back to shop</NavLink>
+    </Nav>
+  );
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", color: "#111" }}>
-      <style>{`* { box-sizing: border-box; }`}</style>
+    <Page nav={nav} width="1000px">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px", gap: "16px" }}>
+        <PageTitle>Your cart ({totalItems})</PageTitle>
+        {lines.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearCart}>
+            Clear all
+          </Button>
+        )}
+      </div>
 
-      <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Link href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
-        <Link href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← Back to shop</Link>
-      </nav>
-
-      <main style={{ maxWidth: "1000px", margin: "0 auto", padding: "48px 40px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px" }}>
-          <h1 style={{ fontSize: "28px", fontWeight: "700" }}>Your cart ({totalItems})</h1>
-          {products.length > 0 && (
-            <button onClick={clearCart} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "13px" }}>Clear all</button>
-          )}
-        </div>
-
-        {products.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 0" }}>
-            <p style={{ color: "#9ca3af", fontSize: "16px", marginBottom: "24px" }}>Your cart is empty</p>
-            <Link href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>
+      {lines.length === 0 ? (
+        <EmptyState
+          message="Your cart is empty"
+          action={
+            <LinkButton href="/products" size="lg">
               Continue shopping
-            </Link>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: "32px", alignItems: "flex-start" }}>
-            <div style={{ flex: 1 }}>
-              {products.map((product) => {
-                const qty = cartItems.find((i) => i.id === product.id)?.qty || 1;
-                return (
-                  <div key={product.id} style={{ display: "flex", gap: "16px", alignItems: "center", padding: "20px", marginBottom: "12px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb" }}>
-                    <div style={{ width: "80px", height: "80px", flexShrink: 0, overflow: "hidden", borderRadius: "8px", backgroundColor: "#f3f4f6" }}>
-                      {product.image_url
-                        ? <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        : <div style={{ width: "100%", height: "100%", backgroundColor: product.color }} />}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontWeight: "600", marginBottom: "4px", fontSize: "15px" }}>{product.name}</p>
-                      <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "12px" }}>${product.price} each</p>
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <div style={{ display: "flex", alignItems: "center", border: "1px solid #e5e7eb", borderRadius: "6px" }}>
-                          <button onClick={() => updateQty(product.id, -1)} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: "6px 12px", fontSize: "16px" }}>−</button>
-                          <span style={{ fontSize: "14px", fontWeight: "600", minWidth: "24px", textAlign: "center" }}>{qty}</span>
-                          <button onClick={() => updateQty(product.id, 1)} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", padding: "6px 12px", fontSize: "16px" }}>+</button>
-                        </div>
-                        <button onClick={() => removeItem(product.id)} style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: "13px" }}>Remove</button>
-                      </div>
-                    </div>
-                    <span style={{ fontSize: "17px", fontWeight: "700" }}>${(product.price * qty).toFixed(2)}</span>
-                  </div>
-                );
-              })}
-            </div>
+            </LinkButton>
+          }
+        />
+      ) : (
+        <div style={{ display: "flex", gap: "32px", alignItems: "flex-start", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 420px", minWidth: 0 }}>
+            {lines.map(({ item, product }) => (
+              <Card key={product.id} style={{ display: "flex", gap: "16px", alignItems: "center", padding: "20px", marginBottom: "12px" }}>
+                <div style={{ width: "72px", height: "72px", flexShrink: 0, overflow: "hidden", borderRadius: radius.sm, backgroundColor: color.surfaceInset }}>
+                  {product.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", backgroundColor: product.color }} />
+                  )}
+                </div>
 
-            <div style={{ width: "300px", flexShrink: 0 }}>
-              <div style={{ backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "28px" }}>
-                <h2 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "20px" }}>Order summary</h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#6b7280", fontSize: "14px" }}>Items ({totalItems})</span>
-                    <span style={{ fontSize: "14px" }}>${total.toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#6b7280", fontSize: "14px" }}>Shipping</span>
-                    <span style={{ fontSize: "14px", color: "#16a34a", fontWeight: "600" }}>Free</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontWeight: "600", marginBottom: "4px", fontSize: "15px" }}>{product.name}</p>
+                  <p style={{ color: color.textDim, fontSize: "13px", marginBottom: "12px" }}>${product.price} each</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", border: `1px solid ${color.border}`, borderRadius: radius.sm }}>
+                      <button
+                        onClick={() => updateQty(product.id, -1)}
+                        aria-label="Decrease quantity"
+                        style={{ background: "none", border: "none", color: color.textMuted, cursor: "pointer", padding: "6px 12px", fontSize: "16px" }}
+                      >
+                        −
+                      </button>
+                      <span style={{ fontSize: "14px", fontWeight: "700", minWidth: "24px", textAlign: "center" }}>{item.qty}</span>
+                      <button
+                        onClick={() => updateQty(product.id, 1)}
+                        aria-label="Increase quantity"
+                        style={{ background: "none", border: "none", color: color.textMuted, cursor: "pointer", padding: "6px 12px", fontSize: "16px" }}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => removeItem(product.id)}>
+                      Remove
+                    </Button>
                   </div>
                 </div>
-                <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: "600", fontSize: "15px" }}>Total</span>
-                  <span style={{ fontWeight: "800", fontSize: "22px" }}>${total.toFixed(2)}</span>
-                </div>
-                <button
-                  onClick={() => router.push("/checkout")}
-                  style={{ width: "100%", backgroundColor: "#111", color: "#fff", border: "none", padding: "14px", cursor: "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px" }}
-                >
-                  Checkout
-                </button>
-                <Link href="/products" style={{ display: "block", textAlign: "center", color: "#6b7280", fontSize: "13px", textDecoration: "none", marginTop: "14px" }}>
-                  Continue shopping
-                </Link>
+
+                <span style={{ fontSize: "17px", fontWeight: "800" }}>${(product.price * item.qty).toFixed(2)}</span>
+              </Card>
+            ))}
+          </div>
+
+          <Card style={{ width: "300px", flexShrink: 0, padding: "28px" }}>
+            <p style={{ fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", color: color.textDim, marginBottom: "20px" }}>
+              Order summary
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: color.textDim, fontSize: "14px" }}>Items ({totalItems})</span>
+                <span style={{ fontSize: "14px" }}>${total.toFixed(2)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: color.textDim, fontSize: "14px" }}>Shipping</span>
+                <span style={{ fontSize: "14px", color: color.success, fontWeight: "600" }}>Free</span>
               </div>
             </div>
-          </div>
-        )}
-      </main>
-    </div>
+            <div
+              style={{
+                borderTop: `1px solid ${color.borderSoft}`,
+                paddingTop: "16px",
+                marginBottom: "20px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span style={{ fontWeight: "600", fontSize: "15px" }}>Total</span>
+              <span style={{ fontWeight: "800", fontSize: "22px" }}>${total.toFixed(2)}</span>
+            </div>
+            <Button full size="lg" onClick={() => router.push("/checkout")}>
+              Checkout
+            </Button>
+            <Link
+              href="/products"
+              style={{ display: "block", textAlign: "center", color: color.textDim, fontSize: "12px", textDecoration: "none", marginTop: "14px" }}
+            >
+              Continue shopping
+            </Link>
+          </Card>
+        </div>
+      )}
+    </Page>
   );
 }
