@@ -3,86 +3,120 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { loginClient, saveTokens } from "@/lib/api";
+import { ApiError, loginClient, resendVerification, saveTokens } from "@/lib/api";
+import { notifyAuthChange } from "@/lib/useAuth";
+import { AuthShell } from "@/components/nav";
+import { Alert, Button, Eyebrow, PageTitle, TextField } from "@/components/ui";
+import { useFieldErrors } from "@/lib/formErrors";
+import { color } from "@/lib/theme";
 
 export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "done">("idle");
+  const [resendMessage, setResendMessage] = useState("");
+  const { errors, onSubmit, clear } = useFieldErrors();
 
-  async function handleSubmit(e: { preventDefault(): void }) {
-    e.preventDefault();
+  async function handleSubmit() {
     setError("");
+    setNeedsVerification(false);
+    setResendMessage("");
+    setResendState("idle");
     setLoading(true);
     try {
       const tokens = await loginClient({ username: form.email, password: form.password });
       saveTokens(tokens.access_token, tokens.refresh_token);
+      notifyAuthChange();
       router.push("/products");
     } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message);
-    } finally {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      setNeedsVerification(err instanceof ApiError && err.status === 403);
       setLoading(false);
     }
   }
 
+  async function handleResend() {
+    setResendState("sending");
+    try {
+      const result = await resendVerification(form.email);
+      setResendMessage(result.message);
+    } catch (err: unknown) {
+      setResendMessage(err instanceof Error ? err.message : "Could not send the email");
+    } finally {
+      setResendState("done");
+    }
+  }
+
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-      <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; } input:focus { border-color: #111 !important; outline: none; }`}</style>
+    <AuthShell>
+      <Eyebrow style={{ marginBottom: "8px" }}>Account</Eyebrow>
+      <PageTitle style={{ marginBottom: "8px" }}>Welcome back</PageTitle>
+      <p style={{ color: color.textMuted, fontSize: "14px", marginBottom: "40px" }}>Log in to your account.</p>
 
-      <Link href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none", marginBottom: "48px" }}>SHOP</Link>
+      {error && <Alert style={{ marginBottom: needsVerification ? "12px" : "20px" }}>{error}</Alert>}
 
-      <div style={{ width: "100%", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "40px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#111", marginBottom: "4px" }}>Welcome back</h1>
-        <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "32px" }}>Log in to your account</p>
+      {needsVerification && (
+        <div style={{ marginBottom: "20px" }}>
+          <Button variant="secondary" size="sm" full onClick={handleResend} disabled={resendState === "sending"}>
+            {resendState === "sending" ? "Sending..." : "Send the verification link again"}
+          </Button>
+          {resendMessage && (
+            <p style={{ color: color.textMuted, fontSize: "12px", marginTop: "10px", lineHeight: 1.5 }}>{resendMessage}</p>
+          )}
+        </div>
+      )}
 
-        {error && (
-          <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: "8px", marginBottom: "20px", fontSize: "13px" }}>
-            {error}
-          </div>
-        )}
+      <form noValidate onSubmit={onSubmit(handleSubmit)} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <TextField
+          label="Email"
+          name="email"
+          type="email"
+          value={form.email}
+          onChange={(e) => {
+            setForm({ ...form, email: e.target.value });
+            clear("email");
+          }}
+          required
+          placeholder="Enter your email address"
+          error={errors.email}
+        />
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div>
-            <label style={{ display: "block", color: "#374151", fontSize: "13px", fontWeight: "500", marginBottom: "6px" }}>Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-              placeholder="your@email.com"
-              style={{ width: "100%", backgroundColor: "#fff", border: "1px solid #e5e7eb", color: "#111", padding: "10px 14px", fontSize: "14px", borderRadius: "8px", transition: "border-color 0.2s" }}
-            />
-          </div>
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-              <label style={{ color: "#374151", fontSize: "13px", fontWeight: "500" }}>Password</label>
-              <Link href="/forgot-password" style={{ color: "#6b7280", fontSize: "13px", textDecoration: "none" }}>Forgot password?</Link>
-            </div>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required
-              placeholder="••••••••"
-              style={{ width: "100%", backgroundColor: "#fff", border: "1px solid #e5e7eb", color: "#111", padding: "10px 14px", fontSize: "14px", borderRadius: "8px", transition: "border-color 0.2s" }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{ backgroundColor: loading ? "#6b7280" : "#111", color: "#fff", border: "none", padding: "12px", cursor: loading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px", marginTop: "8px", transition: "background 0.2s" }}
+        <div>
+          <TextField
+            label="Password"
+            name="password"
+            type="password"
+            value={form.password}
+            onChange={(e) => {
+              setForm({ ...form, password: e.target.value });
+              clear("password");
+            }}
+            required
+            placeholder="Enter your password"
+            error={errors.password}
+          />
+          <Link
+            href="/forgot-password"
+            style={{ display: "inline-block", marginTop: "8px", color: color.textDim, fontSize: "11px", letterSpacing: "1px", textDecoration: "none" }}
           >
-            {loading ? "Logging in..." : "Log in"}
-          </button>
-        </form>
+            Forgot password?
+          </Link>
+        </div>
 
-        <p style={{ textAlign: "center", marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
-          No account?{" "}
-          <Link href="/register" style={{ color: "#111", textDecoration: "none", fontWeight: "600" }}>Sign up</Link>
-        </p>
-      </div>
-    </div>
+        <Button type="submit" size="lg" full disabled={loading} style={{ marginTop: "8px" }}>
+          {loading ? "Logging in..." : "Log in"}
+        </Button>
+      </form>
+
+      <p style={{ textAlign: "center", marginTop: "32px", color: color.textFaint, fontSize: "13px" }}>
+        No account?{" "}
+        <Link href="/register" style={{ color: color.text, textDecoration: "none", fontWeight: "600" }}>
+          Sign up
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

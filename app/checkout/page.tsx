@@ -1,18 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { authFetch, getMe, createOrder, addProductToOrder, checkoutOrder, cancelOrder } from "@/lib/api";
+import Link from "next/link";
+import { addProductToOrder, cancelOrder, checkoutOrder, createOrder, getMe, getProducts, Product } from "@/lib/api";
+import { clearCart, useCart } from "@/lib/cart";
+import { Nav, NavLink, Page } from "@/components/nav";
+import { Alert, Button, Card, EmptyState, LinkButton, PageLoader, PageTitle, Spinner, StatusMark } from "@/components/ui";
+import { color, radius } from "@/lib/theme";
 
-interface Product { id: number; name: string; price: number; color: string; image_url?: string | null; }
-interface CartItem { id: number; qty: number; }
 type Step = "review" | "placing" | "success" | "error";
+
+function Screen({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.bg, padding: "40px 20px" }}>
+      <div style={{ textAlign: "center", maxWidth: "400px", width: "100%" }}>{children}</div>
+    </div>
+  );
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const cart = useCart();
   const [products, setProducts] = useState<Product[]>([]);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [balance, setBalance] = useState(0);
   const [userName, setUserName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -21,27 +31,25 @@ export default function CheckoutPage() {
   const [placingMsg, setPlacingMsg] = useState("");
 
   useEffect(() => {
-    const items: CartItem[] = JSON.parse(localStorage.getItem("cart") || "[]");
-    setCartItems(items);
-    if (items.length === 0) { setLoading(false); return; }
-    Promise.all([authFetch("/product/all?limit=100"), getMe()])
+    Promise.all([getProducts(100), getMe()])
       .then(([allProducts, me]) => {
-        setProducts(allProducts.filter((p: Product) => items.some((i) => i.id === p.id)));
+        setProducts(allProducts);
         setBalance(me.balance);
         setUserName(me.name);
       })
       .catch(() => router.push("/login"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [router]);
 
-  const qtyOf = (id: number) => cartItems.find((i) => i.id === id)?.qty || 1;
-  const total = products.reduce((sum, p) => sum + p.price * qtyOf(p.id), 0);
-  const totalItems = products.reduce((sum, p) => sum + qtyOf(p.id), 0);
-  // Products removed or unpublished after they landed in the cart are not in `products`,
-  // so they are neither priced here nor sent to the order.
-  const unavailableCount = cartItems.length - products.length;
+  const lines = cart
+    .map((item) => ({ item, product: products.find((p) => p.id === item.id) }))
+    .filter((line): line is { item: { id: number; qty: number }; product: Product } => line.product !== undefined);
+
+  const total = lines.reduce((sum, line) => sum + line.product.price * line.item.qty, 0);
+  const totalItems = lines.reduce((sum, line) => sum + line.item.qty, 0);
+  const unavailableCount = cart.length - lines.length;
   const canAfford = balance >= total;
-  const canPlaceOrder = canAfford && products.length > 0;
+  const canPlaceOrder = canAfford && lines.length > 0;
 
   async function handlePlaceOrder() {
     setStep("placing");
@@ -51,170 +59,204 @@ export default function CheckoutPage() {
       const date = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const order = await createOrder(`Order — ${date}`);
       draftOrderId = order.id;
+
       setPlacingMsg("Adding products...");
-      for (const product of products) {
-        const qty = qtyOf(product.id);
-        await addProductToOrder(order.id, product.id, qty);
+      for (const { item, product } of lines) {
+        await addProductToOrder(order.id, product.id, item.qty);
       }
+
       setPlacingMsg("Processing payment...");
       await checkoutOrder(order.id);
       draftOrderId = null;
-      localStorage.setItem("cart", "[]");
+      clearCart();
       setStep("success");
     } catch (err: unknown) {
-      // Drop the half-built order so a retry does not leave drafts behind.
       if (draftOrderId !== null) {
-        try { await cancelOrder(draftOrderId); } catch { /* nothing left to clean up */ }
+        try {
+          await cancelOrder(draftOrderId);
+        } catch {
+        }
       }
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
       setStep("error");
     }
   }
 
-  const spinnerStyle = { width: "36px", height: "36px", border: "3px solid #e5e7eb", borderTop: "3px solid #111", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 20px" };
+  if (loading) return <PageLoader />;
 
-  if (loading) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={spinnerStyle} />
-    </div>
-  );
+  if (step === "placing") {
+    return (
+      <Screen>
+        <Spinner size={36} style={{ margin: "0 auto 20px" }} />
+        <p style={{ fontSize: "15px", fontWeight: "700", marginBottom: "6px" }}>{placingMsg}</p>
+        <p style={{ color: color.textDim, fontSize: "13px" }}>Please wait...</p>
+      </Screen>
+    );
+  }
 
-  if (step === "placing") return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ textAlign: "center" }}>
-        <div style={spinnerStyle} />
-        <p style={{ color: "#111", fontSize: "16px", fontWeight: "600", marginBottom: "6px" }}>{placingMsg}</p>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Please wait...</p>
-      </div>
-    </div>
-  );
-
-  if (step === "success") return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#f9fafb" }}>
-      <div style={{ textAlign: "center", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "16px", border: "1px solid #e5e7eb", padding: "48px 40px" }}>
-        <div style={{ width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
-          <span style={{ color: "#16a34a", fontSize: "24px" }}>✓</span>
-        </div>
-        <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#111", marginBottom: "8px" }}>Order placed!</h1>
-        <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "32px" }}>Your order has been placed and payment processed.</p>
+  if (step === "success") {
+    return (
+      <Screen>
+        <StatusMark tone="success" glyph="✓" />
+        <PageTitle style={{ fontSize: "28px", marginBottom: "8px" }}>Order placed</PageTitle>
+        <p style={{ color: color.textMuted, fontSize: "14px", marginBottom: "32px" }}>
+          Your order has been placed and payment processed.
+        </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <button onClick={() => router.push("/profile")} style={{ backgroundColor: "#111", color: "#fff", border: "none", padding: "12px 32px", cursor: "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px" }}>View orders</button>
-          <button onClick={() => router.push("/products")} style={{ background: "none", color: "#6b7280", border: "1px solid #e5e7eb", padding: "12px 32px", cursor: "pointer", fontWeight: "500", fontSize: "14px", borderRadius: "8px" }}>Continue shopping</button>
+          <LinkButton href="/profile" size="lg" full>
+            View orders
+          </LinkButton>
+          <LinkButton href="/products" variant="secondary" size="lg" full>
+            Continue shopping
+          </LinkButton>
         </div>
-      </div>
-    </div>
-  );
+      </Screen>
+    );
+  }
 
-  if (step === "error") return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#f9fafb" }}>
-      <div style={{ textAlign: "center", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "16px", border: "1px solid #e5e7eb", padding: "48px 40px" }}>
-        <div style={{ width: "56px", height: "56px", borderRadius: "50%", backgroundColor: "#fef2f2", border: "1px solid #fecaca", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
-          <span style={{ color: "#dc2626", fontSize: "24px" }}>✗</span>
-        </div>
-        <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#111", marginBottom: "8px" }}>Order failed</h1>
-        <p style={{ color: "#dc2626", fontSize: "13px", marginBottom: "32px", backgroundColor: "#fef2f2", padding: "12px 16px", borderRadius: "8px" }}>{errorMsg}</p>
+  if (step === "error") {
+    return (
+      <Screen>
+        <StatusMark tone="error" glyph="✗" />
+        <PageTitle style={{ fontSize: "28px", marginBottom: "8px" }}>Order failed</PageTitle>
+        <Alert style={{ marginBottom: "32px" }}>{errorMsg}</Alert>
         <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-          <button onClick={() => router.push("/cart")} style={{ background: "none", color: "#6b7280", border: "1px solid #e5e7eb", padding: "11px 20px", cursor: "pointer", fontSize: "14px", borderRadius: "8px" }}>Back to cart</button>
-          <button onClick={() => { setStep("review"); setErrorMsg(""); }} style={{ backgroundColor: "#111", color: "#fff", border: "none", padding: "11px 20px", cursor: "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px" }}>Try again</button>
+          <LinkButton href="/cart" variant="secondary">
+            Back to cart
+          </LinkButton>
+          <Button
+            onClick={() => {
+              setStep("review");
+              setErrorMsg("");
+            }}
+          >
+            Try again
+          </Button>
         </div>
-      </div>
-    </div>
+      </Screen>
+    );
+  }
+
+  const nav = (
+    <Nav home="/products">
+      <NavLink href="/cart">← Back to cart</NavLink>
+    </Nav>
   );
 
-  if (cartItems.length === 0) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
-      <div style={{ textAlign: "center" }}>
-        <p style={{ color: "#9ca3af", fontSize: "16px", marginBottom: "24px" }}>Your cart is empty</p>
-        <Link href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "12px 32px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>Go shopping</Link>
-      </div>
-    </div>
-  );
+  if (cart.length === 0) {
+    return (
+      <Page nav={nav} width="800px">
+        <EmptyState
+          message="Your cart is empty"
+          action={
+            <LinkButton href="/products" size="lg">
+              Go shopping
+            </LinkButton>
+          }
+        />
+      </Page>
+    );
+  }
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", color: "#111" }}>
-      <style>{`* { box-sizing: border-box; }`}</style>
+    <Page nav={nav} width="800px">
+      <PageTitle style={{ marginBottom: "8px" }}>Checkout</PageTitle>
+      {userName && (
+        <p style={{ color: color.textDim, fontSize: "14px", marginBottom: "32px" }}>Hi, {userName.split(" ")[0]}</p>
+      )}
 
-      <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Link href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
-        <Link href="/cart" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>← Back to cart</Link>
-      </nav>
+      <div style={{ display: "flex", gap: "32px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 360px", minWidth: 0 }}>
+          <p style={{ fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", color: color.textDim, marginBottom: "16px" }}>
+            Items ({totalItems})
+          </p>
 
-      <main style={{ maxWidth: "800px", margin: "0 auto", padding: "48px 40px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: "700", marginBottom: "8px" }}>Checkout</h1>
-        {userName && <p style={{ color: "#6b7280", fontSize: "14px", marginBottom: "32px" }}>Hi, {userName.split(" ")[0]}</p>}
+          {unavailableCount > 0 && (
+            <Alert tone="warning" style={{ marginBottom: "12px" }}>
+              {unavailableCount} item{unavailableCount > 1 ? "s are" : " is"} no longer available and will not be ordered.
+            </Alert>
+          )}
 
-        <div style={{ display: "flex", gap: "32px", alignItems: "flex-start" }}>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#374151", marginBottom: "16px" }}>Items ({totalItems})</h2>
-            {unavailableCount > 0 && (
-              <p style={{ color: "#d97706", fontSize: "13px", backgroundColor: "#fffbeb", border: "1px solid #fde68a", padding: "12px 14px", borderRadius: "8px", marginBottom: "12px" }}>
-                {unavailableCount} item{unavailableCount > 1 ? "s are" : " is"} no longer available and will not be ordered.
-              </p>
-            )}
-            {products.map((product) => {
-              const qty = qtyOf(product.id);
-              return (
-                <div key={product.id} style={{ display: "flex", gap: "14px", alignItems: "center", padding: "16px", marginBottom: "10px", backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e5e7eb" }}>
-                  <div style={{ width: "56px", height: "56px", flexShrink: 0, borderRadius: "8px", overflow: "hidden", backgroundColor: "#f3f4f6" }}>
-                    {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", backgroundColor: product.color }} />}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontWeight: "600", fontSize: "14px", marginBottom: "2px" }}>{product.name}</p>
-                    <p style={{ color: "#6b7280", fontSize: "13px" }}>Qty: {qty} × ${product.price}</p>
-                  </div>
-                  <span style={{ fontWeight: "700", fontSize: "15px" }}>${(product.price * qty).toFixed(2)}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ width: "280px", flexShrink: 0 }}>
-            <div style={{ backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e5e7eb", padding: "24px" }}>
-              <h2 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "20px" }}>Payment</h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontSize: "14px" }}>Subtotal</span>
-                  <span style={{ fontSize: "14px" }}>${total.toFixed(2)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontSize: "14px" }}>Shipping</span>
-                  <span style={{ fontSize: "14px", color: "#16a34a", fontWeight: "600" }}>Free</span>
-                </div>
+          {lines.map(({ item, product }) => (
+            <Card key={product.id} style={{ display: "flex", gap: "14px", alignItems: "center", padding: "16px", marginBottom: "10px" }}>
+              <div style={{ width: "56px", height: "56px", flexShrink: 0, borderRadius: radius.sm, overflow: "hidden", backgroundColor: color.surfaceInset }}>
+                {product.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", backgroundColor: product.color }} />
+                )}
               </div>
-              <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "14px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontWeight: "600", fontSize: "15px" }}>Total</span>
-                <span style={{ fontWeight: "800", fontSize: "20px" }}>${total.toFixed(2)}</span>
-              </div>
-              <div style={{ backgroundColor: "#f9fafb", borderRadius: "8px", padding: "12px", marginBottom: "16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                  <span style={{ color: "#6b7280", fontSize: "13px" }}>Your balance</span>
-                  <span style={{ fontSize: "13px", color: canAfford ? "#16a34a" : "#dc2626", fontWeight: "600" }}>${balance.toFixed(2)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontSize: "13px" }}>After payment</span>
-                  <span style={{ fontSize: "13px", fontWeight: "600", color: canAfford ? "#111" : "#dc2626" }}>
-                    {canAfford ? `$${(balance - total).toFixed(2)}` : "Insufficient funds"}
-                  </span>
-                </div>
-              </div>
-              {!canAfford && (
-                <p style={{ color: "#dc2626", fontSize: "12px", textAlign: "center", marginBottom: "12px" }}>
-                  Not enough balance. <Link href="/profile" style={{ color: "#dc2626", fontWeight: "600" }}>Deposit funds →</Link>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontWeight: "600", fontSize: "14px", marginBottom: "2px" }}>{product.name}</p>
+                <p style={{ color: color.textDim, fontSize: "13px" }}>
+                  Qty: {item.qty} × ${product.price}
                 </p>
-              )}
-              <button
-                onClick={handlePlaceOrder}
-                disabled={!canPlaceOrder}
-                style={{ width: "100%", backgroundColor: canPlaceOrder ? "#111" : "#e5e7eb", color: canPlaceOrder ? "#fff" : "#9ca3af", border: "none", padding: "13px", cursor: canPlaceOrder ? "pointer" : "not-allowed", fontWeight: "600", fontSize: "14px", borderRadius: "8px" }}
-              >
-                Place order
-              </button>
+              </div>
+              <span style={{ fontWeight: "800", fontSize: "15px" }}>${(product.price * item.qty).toFixed(2)}</span>
+            </Card>
+          ))}
+        </div>
+
+        <Card style={{ width: "280px", flexShrink: 0, padding: "24px" }}>
+          <p style={{ fontSize: "11px", letterSpacing: "3px", textTransform: "uppercase", color: color.textDim, marginBottom: "20px" }}>
+            Payment
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: color.textDim, fontSize: "14px" }}>Subtotal</span>
+              <span style={{ fontSize: "14px" }}>${total.toFixed(2)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: color.textDim, fontSize: "14px" }}>Shipping</span>
+              <span style={{ fontSize: "14px", color: color.success, fontWeight: "600" }}>Free</span>
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+
+          <div
+            style={{
+              borderTop: `1px solid ${color.borderSoft}`,
+              paddingTop: "14px",
+              marginBottom: "16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ fontWeight: "600", fontSize: "15px" }}>Total</span>
+            <span style={{ fontWeight: "800", fontSize: "20px" }}>${total.toFixed(2)}</span>
+          </div>
+
+          <div style={{ backgroundColor: color.surfaceInset, borderRadius: radius.sm, padding: "12px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+              <span style={{ color: color.textDim, fontSize: "13px" }}>Your balance</span>
+              <span style={{ fontSize: "13px", color: canAfford ? color.success : color.danger, fontWeight: "600" }}>
+                ${balance.toFixed(2)}
+              </span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: color.textDim, fontSize: "13px" }}>After payment</span>
+              <span style={{ fontSize: "13px", fontWeight: "600", color: canAfford ? color.text : color.danger }}>
+                {canAfford ? `$${(balance - total).toFixed(2)}` : "Insufficient funds"}
+              </span>
+            </div>
+          </div>
+
+          {!canAfford && (
+            <p style={{ color: color.danger, fontSize: "12px", textAlign: "center", marginBottom: "12px" }}>
+              Not enough balance.{" "}
+              <Link href="/profile" style={{ color: color.danger, fontWeight: "600" }}>
+                Deposit funds →
+              </Link>
+            </p>
+          )}
+
+          <Button full size="lg" onClick={handlePlaceOrder} disabled={!canPlaceOrder}>
+            Place order
+          </Button>
+        </Card>
+      </div>
+    </Page>
   );
 }
