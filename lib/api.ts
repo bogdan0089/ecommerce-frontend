@@ -1,3 +1,5 @@
+import { notifyAuthChange } from "@/lib/useAuth";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://bohdan-shop.duckdns.org/api";
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "https://bohdan-shop.duckdns.org";
@@ -135,9 +137,35 @@ async function publicFetch<T = unknown>(path: string, options: RequestInit = {})
   return res.json() as Promise<T>;
 }
 
-export async function authFetch<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAccessToken();
-  const res = await fetch(`${API_URL}${path}`, {
+let pendingRefresh: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refresh = localStorage.getItem("refresh_token");
+  if (!refresh) return null;
+  try {
+    const res = await fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refresh }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { access_token: string };
+    localStorage.setItem("access_token", data.access_token);
+    return data.access_token;
+  } catch {
+    return null;
+  }
+}
+
+function refreshOnce(): Promise<string | null> {
+  pendingRefresh ??= refreshAccessToken().finally(() => {
+    pendingRefresh = null;
+  });
+  return pendingRefresh;
+}
+
+function sendAuthed(path: string, options: RequestInit, token: string | null) {
+  return fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -145,6 +173,21 @@ export async function authFetch<T = unknown>(path: string, options: RequestInit 
       ...options.headers,
     },
   });
+}
+
+export async function authFetch<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
+  let res = await sendAuthed(path, options, getAccessToken());
+
+  if (res.status === 401) {
+    const fresh = await refreshOnce();
+    if (fresh) {
+      res = await sendAuthed(path, options, fresh);
+    } else {
+      logout();
+      notifyAuthChange();
+    }
+  }
+
   if (!res.ok) throw new ApiError(res.status, await readErrorDetail(res));
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
