@@ -13,6 +13,10 @@ function fallbackImage(id: number) {
   return `https://picsum.photos/seed/product${id}/800/800`;
 }
 
+function isHex(value: string) {
+  return /^#[0-9a-f]{3,8}$/i.test(value.trim());
+}
+
 const GUARANTEES = [
   { label: "Free Shipping", value: "On all orders" },
   { label: "Easy Returns", value: "Cancel anytime" },
@@ -109,7 +113,9 @@ export default function ProductPage() {
             <p style={{ color: color.textDim, fontSize: "10px", letterSpacing: "2px", marginBottom: "10px" }}>COLOR</p>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <div style={{ width: "28px", height: "28px", borderRadius: radius.circle, backgroundColor: product.color, border: `1px solid ${color.border}` }} />
-              <span style={{ color: color.textMuted, fontSize: "13px" }}>{product.color}</span>
+              {!isHex(product.color) && (
+                <span style={{ color: color.textMuted, fontSize: "13px", textTransform: "capitalize" }}>{product.color}</span>
+              )}
             </div>
           </div>
 
