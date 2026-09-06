@@ -34,12 +34,15 @@ export const color = {
   infoBorder: "#2563eb40",
 
   violet: "#7c3aed",
+
+  accentFrom: "#a78bfa",
+  accentTo: "#60a5fa",
 } as const;
 
 export const radius = {
-  sm: "2px",
-  md: "4px",
-  pill: "20px",
+  sm: "8px",
+  md: "12px",
+  pill: "999px",
   circle: "50%",
 } as const;
 
