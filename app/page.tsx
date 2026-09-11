@@ -22,7 +22,7 @@ export default function Home() {
   const isLoggedIn = useIsLoggedIn();
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: color.bg, color: color.text, display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", color: color.text, display: "flex", flexDirection: "column" }}>
       <Nav>
         <NavLink href="/products">Products</NavLink>
         {isLoggedIn ? (

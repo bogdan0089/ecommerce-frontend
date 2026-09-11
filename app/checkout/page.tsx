@@ -13,7 +13,7 @@ type Step = "review" | "placing" | "success" | "error";
 
 function Screen({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.bg, padding: "40px 20px" }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
       <div style={{ textAlign: "center", maxWidth: "400px", width: "100%" }}>{children}</div>
     </div>
   );
