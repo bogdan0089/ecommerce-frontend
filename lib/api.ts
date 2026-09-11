@@ -305,6 +305,31 @@ export function getMyTransactions(limit = 20, offset = 0): Promise<Transaction[]
   return authFetch<Transaction[]>(`/transaction/me/transactions?limit=${limit}&offset=${offset}`);
 }
 
+export type ProductPage = {
+  items: Product[];
+  total: number;
+  price_ceiling: number;
+};
+
+export type CatalogueQuery = {
+  name?: string;
+  categoryId?: number | null;
+  maxPrice?: number | null;
+  limit: number;
+  offset: number;
+};
+
+export function browseProducts(query: CatalogueQuery): Promise<ProductPage> {
+  const params = new URLSearchParams({
+    limit: String(query.limit),
+    offset: String(query.offset),
+  });
+  if (query.name) params.set("name", query.name);
+  if (query.categoryId != null) params.set("category_id", String(query.categoryId));
+  if (query.maxPrice != null) params.set("max_price", String(query.maxPrice));
+  return publicFetch<ProductPage>(`/product/catalogue?${params}`);
+}
+
 export function getProducts(limit = 200, offset = 0): Promise<Product[]> {
   return authFetch<Product[]>(`/product/all?limit=${limit}&offset=${offset}`);
 }
@@ -381,8 +406,8 @@ export function getAiRecommendations(): Promise<string> {
   return authFetch<string>("/ai/recommendations");
 }
 
-export function aiSearch(query: string): Promise<string> {
-  return authFetch<string>(`/ai/search?query=${encodeURIComponent(query)}`);
+export function aiSearch(query: string): Promise<Product[]> {
+  return authFetch<Product[]>(`/ai/search?query=${encodeURIComponent(query)}`);
 }
 
 export function aiChat(message: string): Promise<string> {
