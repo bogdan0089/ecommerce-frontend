@@ -2,14 +2,26 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { aiSearch, Category, getCategories, getMe, getProducts, Product } from "@/lib/api";
+import {
+  aiSearch,
+  browseProducts,
+  Category,
+  getCategories,
+  getMe,
+  Product,
+  ProductPage,
+} from "@/lib/api";
 import { useCart, writeCart } from "@/lib/cart";
+import { useIsLoggedIn } from "@/lib/useAuth";
 import { CartButton, LogoutButton, Nav, NavLink } from "@/components/nav";
-import { Button, EmptyState, Input, PageLoader } from "@/components/ui";
+import { Alert, Badge, Button, EmptyState, Input, PageLoader } from "@/components/ui";
 import { color, layout, radius } from "@/lib/theme";
 
 const PER_PAGE = 12;
-const DEFAULT_PRICE_LIMIT = 1000;
+const MIN_PRICE_CEILING = 100;
+const SEARCH_DEBOUNCE_MS = 300;
+const AI_MIN_QUERY = 2;
+const AI_MAX_QUERY = 200;
 
 function fallbackImage(id: number) {
   return `https://picsum.photos/seed/product${id}/400/400`;
@@ -26,22 +38,26 @@ function FilterLabel({ children }: { children: React.ReactNode }) {
 export default function ProductsPage() {
   const cart = useCart();
 
-  const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userName, setUserName] = useState("");
 
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
-  const [priceLimit, setPriceLimit] = useState(DEFAULT_PRICE_LIMIT);
-  const [maxPrice, setMaxPrice] = useState(DEFAULT_PRICE_LIMIT);
+  const [typed, setTyped] = useState("");
+  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const [page, setPage] = useState(1);
+
+  const [result, setResult] = useState<{ key: string; page: ProductPage } | null>(null);
 
   const [quantities, setQuantities] = useState<Record<number, number>>({});
 
+  const isLoggedIn = useIsLoggedIn();
+
   const [aiQuery, setAiQuery] = useState("");
-  const [aiResult, setAiResult] = useState("");
+  const [aiResults, setAiResults] = useState<Product[] | null>(null);
+  const [aiAnswered, setAiAnswered] = useState("");
+  const [aiError, setAiError] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
@@ -52,33 +68,53 @@ export default function ProductsPage() {
       })
       .catch(() => setIsAdmin(false));
 
-    Promise.all([getProducts(200), getCategories(100)])
-      .then(([data, cats]) => {
-        setProducts(data);
-        setCategories(cats);
-        const highest = data.length > 0 ? Math.max(...data.map((p) => p.price)) : DEFAULT_PRICE_LIMIT;
-        const rounded = Math.max(100, Math.ceil(highest / 100) * 100);
-        setPriceLimit(rounded);
-        setMaxPrice(rounded);
-      })
-      .catch(() => setProducts([]))
-      .finally(() => setLoading(false));
+    getCategories(100)
+      .then(setCategories)
+      .catch(() => setCategories([]));
   }, []);
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return products.filter((p) => {
-      if (term && !p.name.toLowerCase().includes(term)) return false;
-      if (category !== "all" && (p.category?.name ?? "other").toLowerCase() !== category) return false;
-      return p.price <= maxPrice;
-    });
-  }, [products, search, category, maxPrice]);
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(typed.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [typed]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const currentPage = Math.min(page, totalPages);
-  const visible = filtered.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
+  const query = useMemo(
+    () => ({
+      name: search,
+      categoryId,
+      maxPrice,
+      limit: PER_PAGE,
+      offset: (page - 1) * PER_PAGE,
+    }),
+    [search, categoryId, maxPrice, page],
+  );
 
-  const filtersActive = search !== "" || category !== "all" || maxPrice < priceLimit;
+  const key = JSON.stringify(query);
+
+  useEffect(() => {
+    let live = true;
+    browseProducts(query)
+      .then((fetched) => {
+        if (live) setResult({ key, page: fetched });
+      })
+      .catch(() => {
+        if (live) setResult({ key, page: { items: [], total: 0, price_ceiling: 0 } });
+      });
+    return () => {
+      live = false;
+    };
+  }, [query, key]);
+
+  const shelf = result?.page;
+  const busy = result?.key !== key;
+  const total = shelf?.total ?? 0;
+  const ceiling = Math.max(MIN_PRICE_CEILING, Math.ceil((shelf?.price_ceiling ?? 0) / 100) * 100);
+
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const filtersActive = search !== "" || categoryId !== null || maxPrice !== null;
+
+  const aiMode = aiResults !== null;
+  const shown = aiMode ? aiResults : (shelf?.items ?? []);
 
   function stepQty(id: number, delta: number) {
     setQuantities((prev) => ({ ...prev, [id]: Math.max(1, Math.min(10, (prev[id] ?? 1) + delta)) }));
@@ -95,22 +131,32 @@ export default function ProductsPage() {
   }
 
   async function runAiSearch() {
-    if (!aiQuery.trim()) return;
+    const asked = aiQuery.trim();
+    if (asked.length < AI_MIN_QUERY) return;
     setAiLoading(true);
-    setAiResult("");
+    setAiError("");
     try {
-      setAiResult(await aiSearch(aiQuery));
-    } catch {
-      setAiResult("Something went wrong.");
+      setAiResults(await aiSearch(asked));
+      setAiAnswered(asked);
+    } catch (err: unknown) {
+      setAiResults(null);
+      setAiError(err instanceof Error ? err.message : "Search is unavailable right now");
     } finally {
       setAiLoading(false);
     }
   }
 
-  if (loading) return <PageLoader />;
+  function clearAiSearch() {
+    setAiResults(null);
+    setAiAnswered("");
+    setAiError("");
+    setAiQuery("");
+  }
+
+  if (!result) return <PageLoader />;
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: color.bg, color: color.text }}>
+    <div style={{ minHeight: "100vh", color: color.text }}>
       <Nav>
         {userName && <span style={{ color: color.textDim, fontSize: "11px", letterSpacing: "1px" }}>Hi, {userName.split(" ")[0]}</span>}
         {isAdmin && <NavLink href="/admin">Admin</NavLink>}
@@ -137,9 +183,9 @@ export default function ProductsPage() {
             <Input
               type="text"
               placeholder="Search by product name"
-              value={search}
+              value={typed}
               onChange={(e) => {
-                setSearch(e.target.value);
+                setTyped(e.target.value);
                 setPage(1);
               }}
               style={{ padding: "9px 12px", fontSize: "13px" }}
@@ -148,14 +194,14 @@ export default function ProductsPage() {
 
           <div style={{ marginBottom: "32px" }}>
             <FilterLabel>Category</FilterLabel>
-            {[{ id: 0, name: "All", value: "all" }, ...categories.map((c) => ({ id: c.id, name: c.name, value: c.name.toLowerCase() }))].map(
+            {[{ id: null, name: "All" }, ...categories].map(
               (option) => {
-                const active = category === option.value;
+                const active = categoryId === option.id;
                 return (
                   <button
-                    key={option.value}
+                    key={option.id ?? "all"}
                     onClick={() => {
-                      setCategory(option.value);
+                      setCategoryId(option.id);
                       setPage(1);
                     }}
                     style={{
@@ -182,14 +228,14 @@ export default function ProductsPage() {
           <div style={{ marginBottom: "32px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <FilterLabel>Max price</FilterLabel>
-              <span style={{ fontSize: "13px", fontWeight: "700" }}>${maxPrice}</span>
+              <span style={{ fontSize: "13px", fontWeight: "700" }}>${maxPrice ?? ceiling}</span>
             </div>
             <input
               type="range"
               min={0}
-              max={priceLimit}
+              max={ceiling}
               step={10}
-              value={maxPrice}
+              value={maxPrice ?? ceiling}
               aria-label="Maximum price"
               onChange={(e) => {
                 setMaxPrice(parseInt(e.target.value, 10));
@@ -199,7 +245,7 @@ export default function ProductsPage() {
             />
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
               <span style={{ color: color.textFaint, fontSize: "12px" }}>$0</span>
-              <span style={{ color: color.textFaint, fontSize: "12px" }}>${priceLimit}</span>
+              <span style={{ color: color.textFaint, fontSize: "12px" }}>${ceiling}</span>
             </div>
           </div>
 
@@ -209,9 +255,10 @@ export default function ProductsPage() {
               size="sm"
               full
               onClick={() => {
+                setTyped("");
                 setSearch("");
-                setCategory("all");
-                setMaxPrice(priceLimit);
+                setCategoryId(null);
+                setMaxPrice(null);
                 setPage(1);
               }}
             >
@@ -221,49 +268,72 @@ export default function ProductsPage() {
 
           <div style={{ marginTop: "32px" }}>
             <FilterLabel>AI search</FilterLabel>
-            <Input
-              type="text"
-              placeholder="Describe what you are looking for"
-              value={aiQuery}
-              onChange={(e) => setAiQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") runAiSearch();
-              }}
-              style={{ padding: "9px 12px", fontSize: "13px", marginBottom: "8px" }}
-            />
-            <Button size="sm" full onClick={runAiSearch} disabled={aiLoading}>
-              {aiLoading ? "Searching..." : "Search with AI"}
-            </Button>
-            {aiResult && (
-              <div
-                style={{
-                  marginTop: "10px",
-                  backgroundColor: color.surfaceInset,
-                  border: `1px solid ${color.border}`,
-                  borderRadius: radius.sm,
-                  padding: "10px 12px",
-                  fontSize: "12px",
-                  color: color.textMuted,
-                  lineHeight: "1.6",
-                  whiteSpace: "pre-line",
-                }}
-              >
-                {aiResult}
-              </div>
+            {isLoggedIn ? (
+              <>
+                <Input
+                  type="text"
+                  placeholder="Describe what you are looking for"
+                  value={aiQuery}
+                  maxLength={AI_MAX_QUERY}
+                  onChange={(e) => setAiQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") runAiSearch();
+                  }}
+                  style={{ padding: "9px 12px", fontSize: "13px", marginBottom: "8px" }}
+                />
+                <Button
+                  size="sm"
+                  full
+                  onClick={runAiSearch}
+                  disabled={aiLoading || aiQuery.trim().length < AI_MIN_QUERY}
+                >
+                  {aiLoading ? "Searching..." : "Search with AI"}
+                </Button>
+                {aiError && (
+                  <Alert style={{ marginTop: "10px", fontSize: "12px" }}>{aiError}</Alert>
+                )}
+              </>
+            ) : (
+              <p style={{ color: color.textDim, fontSize: "12px", lineHeight: "1.6" }}>
+                <Link href="/login" style={{ color: color.text }}>
+                  Sign in
+                </Link>{" "}
+                to search the catalogue by description.
+              </p>
             )}
           </div>
         </aside>
 
-        <main style={{ flex: 1, minWidth: 0, padding: "32px 32px 80px" }}>
-          <p style={{ color: color.textDim, fontSize: "12px", letterSpacing: "1px", marginBottom: "24px" }}>
-            {filtered.length} PRODUCTS
-          </p>
+        <main
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: "32px 32px 80px",
+            opacity: busy && !aiMode ? 0.55 : 1,
+            transition: "opacity 0.15s",
+          }}
+        >
+          {aiMode ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
+              <Badge tint={color.accentFrom}>AI</Badge>
+              <span style={{ color: color.textMuted, fontSize: "13px" }}>
+                {shown.length} {shown.length === 1 ? "match" : "matches"} for “{aiAnswered}”
+              </span>
+              <Button variant="ghost" size="sm" onClick={clearAiSearch}>
+                Clear
+              </Button>
+            </div>
+          ) : (
+            <p style={{ color: color.textDim, fontSize: "12px", letterSpacing: "1px", marginBottom: "24px" }}>
+              {total} PRODUCTS
+            </p>
+          )}
 
-          {filtered.length === 0 ? (
-            <EmptyState message="No products found" />
+          {shown.length === 0 ? (
+            <EmptyState message={aiMode ? "Nothing in the catalogue matches that" : "No products found"} />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: "16px" }}>
-              {visible.map((product) => {
+              {shown.map((product) => {
                 const inCart = cart.find((c) => c.id === product.id);
                 const qty = quantities[product.id] ?? 1;
                 return (
@@ -332,15 +402,15 @@ export default function ProductsPage() {
             </div>
           )}
 
-          {filtered.length > PER_PAGE && (
+          {!aiMode && total > PER_PAGE && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", marginTop: "40px" }}>
-              <Button variant="secondary" size="sm" onClick={() => setPage(currentPage - 1)} disabled={currentPage === 1}>
+              <Button variant="secondary" size="sm" onClick={() => setPage(page - 1)} disabled={page === 1 || busy}>
                 Previous
               </Button>
               <span style={{ color: color.textDim, fontSize: "12px", letterSpacing: "1px" }}>
-                PAGE {currentPage} OF {totalPages}
+                PAGE {page} OF {totalPages}
               </span>
-              <Button size="sm" onClick={() => setPage(currentPage + 1)} disabled={currentPage === totalPages}>
+              <Button size="sm" onClick={() => setPage(page + 1)} disabled={page >= totalPages || busy}>
                 Next
               </Button>
             </div>
