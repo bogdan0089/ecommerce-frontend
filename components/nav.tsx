@@ -10,10 +10,7 @@ import { cartCount, useCart } from "@/lib/cart";
 
 function Wordmark({ href = "/", style }: { href?: string; style?: CSSProperties }) {
   return (
-    <Link
-      href={href}
-      style={{ fontSize: "16px", fontWeight: "800", letterSpacing: "5px", color: color.text, textDecoration: "none", ...style }}
-    >
+    <Link href={href} className="wordmark" style={style}>
       SHOP
     </Link>
   );
@@ -21,7 +18,7 @@ function Wordmark({ href = "/", style }: { href?: string; style?: CSSProperties 
 
 export function NavLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link href={href} style={{ color: color.textDim, fontSize: "11px", letterSpacing: "2px", textTransform: "uppercase", textDecoration: "none" }}>
+    <Link href={href} className="nav-link">
       {children}
     </Link>
   );
@@ -29,24 +26,9 @@ export function NavLink({ href, children }: { href: string; children: ReactNode 
 
 export function Nav({ home = "/", children }: { home?: string; children?: ReactNode }) {
   return (
-    <nav
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 200,
-        backgroundColor: "rgba(8,8,8,0.92)",
-        backdropFilter: "blur(20px)",
-        borderBottom: `1px solid ${color.borderSoft}`,
-        padding: "0 40px",
-        height: layout.navHeight,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "24px",
-      }}
-    >
+    <nav className="nav-bar">
       <Wordmark href={home} />
-      <div style={{ display: "flex", alignItems: "center", gap: "24px", flexWrap: "wrap" }}>{children}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: "26px", flexWrap: "wrap" }}>{children}</div>
     </nav>
   );
 }
@@ -123,7 +105,7 @@ export function LogoutButton() {
 
 export function Page({ nav, children, width = layout.page }: { nav?: ReactNode; children: ReactNode; width?: string }) {
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: color.bg, color: color.text }}>
+    <div style={{ minHeight: "100vh", color: color.text }}>
       {nav}
       <main style={{ maxWidth: width, margin: "0 auto", padding: "48px 40px 80px" }}>{children}</main>
     </div>

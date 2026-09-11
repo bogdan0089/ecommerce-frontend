@@ -272,7 +272,7 @@ export function Spinner({ size = 32, style }: { size?: number; style?: CSSProper
 
 export function PageLoader() {
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: color.bg }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <Spinner />
     </div>
   );

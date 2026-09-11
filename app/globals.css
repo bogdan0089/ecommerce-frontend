@@ -252,6 +252,88 @@ select option {
   transform: scale(1.05);
 }
 
+.nav-bar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: 64px;
+  padding: 0 40px;
+  background: rgba(10, 10, 18, 0.5);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+}
+
+/* A gradient hairline instead of a flat rule, so the bar does not cut the page. */
+.nav-bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(167, 139, 250, 0.45),
+    rgba(96, 165, 250, 0.45),
+    transparent
+  );
+}
+
+.nav-link {
+  position: relative;
+  color: #8b8b95;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 4px 0;
+  transition: color 0.22s;
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--accent-from), var(--accent-to));
+  transition: transform 0.25s ease;
+}
+
+.nav-link:hover {
+  color: #ffffff;
+}
+
+.nav-link:hover::after {
+  transform: scaleX(1);
+}
+
+.wordmark {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 5px;
+  text-decoration: none;
+  background: linear-gradient(100deg, #ffffff 35%, var(--accent-from));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (max-width: 620px) {
+  .nav-bar {
+    padding: 0 20px;
+    gap: 14px;
+  }
+}
+
 .landing {
   flex: 1;
   max-width: 900px;
