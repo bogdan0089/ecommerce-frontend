@@ -4,15 +4,60 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
-import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js";
 import {
-  authFetch, logout, getMyStats, changePassword, createPaymentIntent,
-  updateClient, deleteClient, getOrderWithProducts, deleteProductFromOrder,
-  getAiRecommendations, aiChat,
-  ClientStats, OrderWithProducts,
+  aiChat,
+  changePassword,
+  Client,
+  ClientStats,
+  createPaymentIntent,
+  deleteClient,
+  deleteProductFromOrder,
+  depositBalance,
+  getAiRecommendations,
+  getMe,
+  getMyOrders,
+  getMyStats,
+  getOrderWithProducts,
+  logout,
+  Order,
+  OrderWithProducts,
+  updateClient,
 } from "@/lib/api";
+import { notifyAuthChange } from "@/lib/useAuth";
+import { LogoutButton, Nav, NavLink, Page } from "@/components/nav";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  LinkButton,
+  PageLoader,
+  PageTitle,
+  Spinner,
+  StatCard,
+  Tabs,
+  TextField,
+} from "@/components/ui";
+import { useFieldErrors } from "@/lib/formErrors";
+import { color, radius, statusColor } from "@/lib/theme";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY!);
+const STRIPE_KEY = process.env.NEXT_PUBLIC_STRIPE_KEY;
+const stripePromise = STRIPE_KEY ? loadStripe(STRIPE_KEY) : null;
+
+const TABS = ["overview", "orders", "edit", "deposit", "security", "ai"] as const;
+type Tab = (typeof TABS)[number];
+
+const TAB_LABELS: Record<Tab, string> = {
+  overview: "Overview",
+  orders: "Orders",
+  edit: "Edit profile",
+  deposit: "Deposit",
+  security: "Security",
+  ai: "AI",
+};
 
 function PaymentForm({ clientSecret, amount, onSuccess }: { clientSecret: string; amount: number; onSuccess: () => void }) {
   const stripe = useStripe();
@@ -20,14 +65,13 @@ function PaymentForm({ clientSecret, amount, onSuccess }: { clientSecret: string
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!stripe || !elements) return;
+    const card = elements?.getElement(CardElement);
+    if (!stripe || !card) return;
     setLoading(true);
     setError("");
-    const result = await stripe.confirmCardPayment(clientSecret, {
-      payment_method: { card: elements.getElement(CardElement)! },
-    });
+    const result = await stripe.confirmCardPayment(clientSecret, { payment_method: { card } });
     if (result.error) {
       setError(result.error.message || "Payment failed");
       setLoading(false);
@@ -39,28 +83,27 @@ function PaymentForm({ clientSecret, amount, onSuccess }: { clientSecret: string
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <div>
-        <label style={{ display: "block", color: "#374151", fontSize: "13px", fontWeight: "500", marginBottom: "8px" }}>Card details</label>
-        <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", padding: "14px 16px", borderRadius: "8px" }}>
-          <CardElement options={{ style: { base: { color: "#111", fontSize: "14px", "::placeholder": { color: "#9ca3af" } }, invalid: { color: "#dc2626" } } }} />
+        <span style={{ display: "block", color: color.textDim, fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "8px" }}>
+          Card details
+        </span>
+        <div style={{ backgroundColor: color.surfaceInset, border: `1px solid ${color.border}`, padding: "14px 16px", borderRadius: radius.sm }}>
+          <CardElement
+            options={{
+              style: {
+                base: { color: color.text, fontSize: "14px", "::placeholder": { color: color.textFaint } },
+                invalid: { color: color.danger },
+              },
+            }}
+          />
         </div>
       </div>
-      {error && <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", fontSize: "13px" }}>{error}</div>}
-      <button
-        type="submit"
-        disabled={loading || !stripe}
-        style={{ backgroundColor: (loading || !stripe) ? "#e5e7eb" : "#111", color: (loading || !stripe) ? "#9ca3af" : "#fff", border: "none", padding: "13px", cursor: (loading || !stripe) ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px" }}
-      >
+      {error && <Alert>{error}</Alert>}
+      <Button type="submit" size="lg" full disabled={loading || !stripe}>
         {loading ? "Processing..." : `Pay $${amount.toFixed(2)}`}
-      </button>
+      </Button>
     </form>
   );
 }
-
-interface Client { id: number; name: string; email: string; age: number; balance: number; role: string; }
-interface Order { id: number; title: string; status: string; client_id: number; }
-
-const STATUS_COLOR: Record<string, string> = { create: "#d97706", completed: "#16a34a", cancelled: "#dc2626" };
-const STATUS_BG: Record<string, string> = { create: "#fffbeb", completed: "#f0fdf4", cancelled: "#fef2f2" };
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -68,45 +111,44 @@ export default function ProfilePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<ClientStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "edit" | "deposit" | "security" | "ai">("overview");
+  const [tab, setTab] = useState<Tab>("overview");
 
-  // Deposit
   const [depositAmount, setDepositAmount] = useState("");
   const [depositLoading, setDepositLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const [depositError, setDepositError] = useState("");
-  const [depositSuccess, setDepositSuccess] = useState(false);
+  const [depositSuccess, setDepositSuccess] = useState("");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
-  // Password
   const [pwForm, setPwForm] = useState({ old_password: "", new_password: "", confirm: "" });
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState(false);
 
-  // Edit profile
   const [editForm, setEditForm] = useState({ name: "", age: "", address: "" });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState("");
   const [editSuccess, setEditSuccess] = useState(false);
 
-  // Delete account
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // AI
   const [aiRecs, setAiRecs] = useState("");
   const [aiRecsLoading, setAiRecsLoading] = useState(false);
   const [chatMessage, setChatMessage] = useState("");
   const [chatReply, setChatReply] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Order details
+  const editFields = useFieldErrors();
+  const depositFields = useFieldErrors();
+  const securityFields = useFieldErrors();
+
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [orderDetails, setOrderDetails] = useState<Record<number, OrderWithProducts>>({});
-  const [orderDetailsLoading, setOrderDetailsLoading] = useState<number | null>(null);
-  const [orderDetailsError, setOrderDetailsError] = useState<number | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState<number | null>(null);
+  const [detailsError, setDetailsError] = useState<number | null>(null);
 
   useEffect(() => {
-    Promise.all([authFetch("/client/me"), authFetch("/client/me/orders"), getMyStats()])
+    Promise.all([getMe(), getMyOrders(), getMyStats()])
       .then(([me, myOrders, myStats]) => {
         setClient(me);
         setOrders(myOrders);
@@ -115,12 +157,16 @@ export default function ProfilePage() {
       })
       .catch(() => router.push("/login"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [router]);
 
-  async function handleChangePassword(e: { preventDefault(): void }) {
-    e.preventDefault();
-    if (pwForm.new_password !== pwForm.confirm) { setPwError("Passwords do not match"); return; }
-    setPwLoading(true); setPwError(""); setPwSuccess(false);
+  async function handleChangePassword() {
+    if (pwForm.new_password !== pwForm.confirm) {
+      securityFields.setErrors({ confirm: "Passwords do not match" });
+      return;
+    }
+    setPwLoading(true);
+    setPwError("");
+    setPwSuccess(false);
     try {
       await changePassword(pwForm.old_password, pwForm.new_password);
       setPwForm({ old_password: "", new_password: "", confirm: "" });
@@ -128,70 +174,102 @@ export default function ProfilePage() {
       setTimeout(() => setPwSuccess(false), 3000);
     } catch (err: unknown) {
       setPwError(err instanceof Error ? err.message : "Error");
-    } finally { setPwLoading(false); }
+    } finally {
+      setPwLoading(false);
+    }
   }
 
-  async function handleDeposit(e: { preventDefault(): void }) {
-    e.preventDefault();
+  async function handleDemoTopUp() {
+    if (!client) return;
+    setDemoLoading(true);
+    setDepositError("");
+    try {
+      const updated = await depositBalance(client.id, 100);
+      setClient((prev) => (prev ? { ...prev, balance: updated.balance } : prev));
+      setDepositSuccess("Balance topped up. No payment was taken.");
+      setTimeout(() => setDepositSuccess(""), 4000);
+    } catch (err: unknown) {
+      setDepositError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
+  async function handleDeposit() {
     const amount = parseFloat(depositAmount);
-    if (!amount || amount <= 0) { setDepositError("Enter a valid amount"); return; }
-    setDepositLoading(true); setDepositError("");
+    if (!amount || amount <= 0) {
+      depositFields.setErrors({ amount: "Enter an amount greater than zero" });
+      return;
+    }
+    setDepositLoading(true);
+    setDepositError("");
     try {
       const data = await createPaymentIntent(amount);
       setClientSecret(data.client_secret);
     } catch (err: unknown) {
       setDepositError(err instanceof Error ? err.message : "Error");
-    } finally { setDepositLoading(false); }
+    } finally {
+      setDepositLoading(false);
+    }
   }
 
-  async function handleEditProfile(e: { preventDefault(): void }) {
-    e.preventDefault();
+  async function handleEditProfile() {
     if (!client) return;
-    setEditLoading(true); setEditError(""); setEditSuccess(false);
+    setEditLoading(true);
+    setEditError("");
+    setEditSuccess(false);
     try {
       const updated = await updateClient(client.id, {
         name: editForm.name,
-        age: parseInt(editForm.age),
+        age: parseInt(editForm.age, 10),
         address: editForm.address || undefined,
       });
-      setClient((prev) => prev ? { ...prev, name: updated.name, age: updated.age } : prev);
+      setClient((prev) => (prev ? { ...prev, name: updated.name, age: updated.age } : prev));
       setEditSuccess(true);
       setTimeout(() => setEditSuccess(false), 3000);
     } catch (err: unknown) {
       setEditError(err instanceof Error ? err.message : "Error");
-    } finally { setEditLoading(false); }
+    } finally {
+      setEditLoading(false);
+    }
   }
 
   async function handleDeleteAccount() {
     if (!client) return;
-    if (!confirm("Are you sure? This action cannot be undone.")) return;
+    if (!window.confirm("Are you sure? This action cannot be undone.")) return;
     setDeleteLoading(true);
     try {
       await deleteClient(client.id);
       logout();
+      notifyAuthChange();
       router.push("/login");
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error deleting account");
+      window.alert(err instanceof Error ? err.message : "Error deleting account");
       setDeleteLoading(false);
     }
   }
 
   async function toggleOrderDetails(orderId: number) {
-    if (expandedOrder === orderId) { setExpandedOrder(null); return; }
+    if (expandedOrder === orderId) {
+      setExpandedOrder(null);
+      return;
+    }
     setExpandedOrder(orderId);
-    setOrderDetailsError(null);
+    setDetailsError(null);
     if (orderDetails[orderId]) return;
-    setOrderDetailsLoading(orderId);
+    setDetailsLoading(orderId);
     try {
       const data = await getOrderWithProducts(orderId);
       setOrderDetails((prev) => ({ ...prev, [orderId]: data }));
     } catch {
-      setOrderDetailsError(orderId);
-    } finally { setOrderDetailsLoading(null); }
+      setDetailsError(orderId);
+    } finally {
+      setDetailsLoading(null);
+    }
   }
 
   async function handleRemoveProduct(orderId: number, productId: number) {
-    if (!confirm("Remove this product from the order?")) return;
+    if (!window.confirm("Remove this product from the order?")) return;
     try {
       await deleteProductFromOrder(orderId, productId);
       setOrderDetails((prev) => ({
@@ -199,358 +277,455 @@ export default function ProfilePage() {
         [orderId]: { ...prev[orderId], products: prev[orderId].products.filter((p) => p.id !== productId) },
       }));
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error");
+      window.alert(err instanceof Error ? err.message : "Error");
     }
   }
 
-  if (loading) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ width: "32px", height: "32px", border: "2px solid #e5e7eb", borderTop: "2px solid #111", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-    </div>
-  );
-
+  if (loading) return <PageLoader />;
   if (!client) return null;
 
-  const inputStyle = { width: "100%", backgroundColor: "#fff", border: "1px solid #e5e7eb", color: "#111", padding: "10px 14px", fontSize: "14px", borderRadius: "8px", outline: "none" };
+  const nav = (
+    <Nav>
+      <NavLink href="/products">Products</NavLink>
+      <NavLink href="/transactions">Transactions</NavLink>
+      <LogoutButton />
+    </Nav>
+  );
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", color: "#111" }}>
-      <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; } input:focus { border-color: #111 !important; outline: none; }`}</style>
-
-      <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Link href="/" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
-        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-          <Link href="/products" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>Products</Link>
-          <Link href="/transactions" style={{ color: "#6b7280", fontSize: "14px", textDecoration: "none" }}>Transactions</Link>
-          <button onClick={() => { logout(); router.push("/login"); }} style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", cursor: "pointer", fontSize: "13px", padding: "7px 16px", borderRadius: "6px" }}>Logout</button>
+    <Page nav={nav} width="900px">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "36px", flexWrap: "wrap", gap: "16px" }}>
+        <div>
+          <PageTitle>{client.name}</PageTitle>
+          <p style={{ color: color.textDim, fontSize: "14px", marginTop: "4px" }}>{client.email}</p>
         </div>
-      </nav>
-
-      <main style={{ maxWidth: "900px", margin: "0 auto", padding: "48px 40px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "36px", flexWrap: "wrap", gap: "16px" }}>
-          <div>
-            <h1 style={{ fontSize: "32px", fontWeight: "700" }}>{client.name}</h1>
-            <p style={{ color: "#6b7280", fontSize: "14px", marginTop: "4px" }}>{client.email}</p>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "500", marginBottom: "4px" }}>Balance</p>
-            <p style={{ fontSize: "32px", fontWeight: "800" }}>${client.balance.toFixed(2)}</p>
-            <button onClick={() => setActiveTab("deposit")} style={{ background: "none", border: "none", color: "#16a34a", fontSize: "13px", fontWeight: "600", cursor: "pointer", marginTop: "2px" }}>+ Add funds</button>
-          </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ color: color.textDim, fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "4px" }}>Balance</p>
+          <p style={{ fontSize: "32px", fontWeight: "800", letterSpacing: "-1px" }}>${client.balance.toFixed(2)}</p>
+          <Button variant="ghost" size="sm" onClick={() => setTab("deposit")} style={{ color: color.success, padding: "4px 0" }}>
+            + Add funds
+          </Button>
         </div>
+      </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "36px" }}>
-          {[
-            { label: "Orders", value: stats?.total_orders ?? orders.length },
-            { label: "Total spent", value: `$${(stats?.total_spent ?? 0).toFixed(2)}` },
-            { label: "Role", value: client.role },
-            { label: "Age", value: client.age },
-          ].map((s) => (
-            <div key={s.label} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "20px" }}>
-              <p style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "500", marginBottom: "6px" }}>{s.label}</p>
-              <p style={{ fontSize: "20px", fontWeight: "700", textTransform: "capitalize" }}>{s.value}</p>
-            </div>
-          ))}
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "36px" }}>
+        <StatCard label="Orders" value={stats?.total_orders ?? orders.length} />
+        <StatCard label="Total spent" value={`$${(stats?.total_spent ?? 0).toFixed(2)}`} />
+        <StatCard label="Role" value={client.role ?? "client"} />
+        <StatCard label="Age" value={client.age} />
+      </div>
 
-        <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: "28px" }}>
-          {(["overview", "orders", "edit", "deposit", "security", "ai"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{ background: "none", border: "none", color: activeTab === tab ? "#111" : "#6b7280", cursor: "pointer", fontSize: "14px", padding: "10px 20px", borderBottom: activeTab === tab ? "2px solid #111" : "2px solid transparent", fontWeight: activeTab === tab ? "600" : "400", textTransform: "capitalize" }}
-            >
-              {tab === "edit" ? "Edit profile" : tab === "ai" ? "AI" : tab}
-            </button>
-          ))}
-        </div>
+      <Tabs tabs={TABS} active={tab} onChange={setTab} labels={TAB_LABELS} />
 
-        {activeTab === "overview" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "24px" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "16px" }}>Account info</h3>
-              {[
-                { label: "Name", value: client.name },
-                { label: "Email", value: client.email },
-                { label: "Age", value: `${client.age} y.o.` },
-                { label: "Role", value: client.role },
-              ].map((item) => (
-                <div key={item.label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f3f4f6" }}>
-                  <span style={{ color: "#6b7280", fontSize: "14px" }}>{item.label}</span>
-                  <span style={{ fontSize: "14px", fontWeight: "500", textTransform: "capitalize" }}>{item.value}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "24px" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "16px" }}>Quick actions</h3>
-              {[
-                { label: "Browse Products", href: "/products" },
-                { label: "View Cart", href: "/cart" },
-                { label: "Transaction History", href: "/transactions" },
-              ].map((item) => (
-                <Link key={item.label} href={item.href} style={{ color: "#374151", fontSize: "14px", textDecoration: "none", padding: "10px 0", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  {item.label} <span style={{ color: "#9ca3af" }}>→</span>
-                </Link>
-              ))}
-              <button onClick={() => setActiveTab("orders")} style={{ background: "none", border: "none", color: "#374151", fontSize: "14px", textAlign: "left", cursor: "pointer", padding: "10px 0", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                My orders ({orders.length}) <span style={{ color: "#9ca3af" }}>→</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "orders" && (
-          <div>
-            {orders.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 0" }}>
-                <p style={{ color: "#9ca3af", fontSize: "16px", marginBottom: "20px" }}>No orders yet</p>
-                <Link href="/products" style={{ display: "inline-block", backgroundColor: "#111", color: "#fff", padding: "11px 28px", fontSize: "14px", fontWeight: "600", textDecoration: "none", borderRadius: "8px" }}>Start shopping</Link>
+      {tab === "overview" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px" }}>
+          <Card style={{ padding: "24px" }}>
+            <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: color.textDim, marginBottom: "16px" }}>
+              Account info
+            </p>
+            {[
+              { label: "Name", value: client.name },
+              { label: "Email", value: client.email },
+              { label: "Age", value: `${client.age} y.o.` },
+              { label: "Role", value: client.role ?? "client" },
+            ].map((item) => (
+              <div key={item.label} style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "10px 0", borderBottom: `1px solid ${color.borderSoft}` }}>
+                <span style={{ color: color.textDim, fontSize: "14px" }}>{item.label}</span>
+                <span style={{ fontSize: "14px", fontWeight: "500", textTransform: "capitalize", textAlign: "right", wordBreak: "break-all" }}>
+                  {item.value}
+                </span>
               </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {orders.map((order) => (
-                  <div key={order.id} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
-                    <div style={{ padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <p style={{ fontWeight: "600", marginBottom: "4px", fontSize: "15px" }}>{order.title}</p>
-                        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Order #{order.id}</p>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <span style={{ backgroundColor: STATUS_BG[order.status] || "#f3f4f6", color: STATUS_COLOR[order.status] || "#6b7280", padding: "4px 14px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", textTransform: "capitalize" }}>
-                          {order.status}
-                        </span>
-                        <button
-                          onClick={() => toggleOrderDetails(order.id)}
-                          style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", cursor: "pointer", fontSize: "12px", padding: "5px 14px", borderRadius: "6px", fontWeight: "500" }}
-                        >
-                          {expandedOrder === order.id ? "Hide" : "Details"}
-                        </button>
-                      </div>
-                    </div>
+            ))}
+          </Card>
 
-                    {expandedOrder === order.id && (
-                      <div style={{ borderTop: "1px solid #f3f4f6", padding: "16px 20px", backgroundColor: "#fafafa" }}>
-                        {orderDetailsLoading === order.id ? (
-                          <div style={{ display: "flex", justifyContent: "center", padding: "16px" }}>
-                            <div style={{ width: "20px", height: "20px", border: "2px solid #e5e7eb", borderTop: "2px solid #111", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                          </div>
-                        ) : orderDetailsError === order.id ? (
-                          <p style={{ color: "#dc2626", fontSize: "13px" }}>Failed to load order details. Try again.</p>
-                        ) : orderDetails[order.id]?.products?.length === 0 ? (
-                          <p style={{ color: "#9ca3af", fontSize: "13px" }}>No products in this order</p>
-                        ) : (
-                          <div>
-                            <p style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "600", marginBottom: "10px" }}>PRODUCTS</p>
-                            {orderDetails[order.id]?.products?.map((product) => (
-                              <div key={product.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #f3f4f6" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                  <div style={{ width: "28px", height: "28px", borderRadius: "6px", backgroundColor: product.color, border: "1px solid #e5e7eb", flexShrink: 0 }} />
-                                  <div>
-                                    <p style={{ fontSize: "13px", fontWeight: "600" }}>{product.name}</p>
-                                    <p style={{ color: "#9ca3af", fontSize: "12px" }}>Qty: {product.quantity}</p>
-                                  </div>
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                                  <span style={{ fontSize: "13px", fontWeight: "700" }}>${(product.price * product.quantity).toFixed(2)}</span>
-                                  {order.status === "create" && (
-                                    <button
-                                      onClick={() => handleRemoveProduct(order.id, product.id)}
-                                      style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", cursor: "pointer", fontSize: "11px", padding: "4px 10px", borderRadius: "6px", fontWeight: "600" }}
-                                    >
-                                      Remove
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+          <Card style={{ padding: "24px" }}>
+            <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: color.textDim, marginBottom: "16px" }}>
+              Quick actions
+            </p>
+            {[
+              { label: "Browse products", href: "/products" },
+              { label: "View cart", href: "/cart" },
+              { label: "Transaction history", href: "/transactions" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{
+                  color: color.textMuted,
+                  fontSize: "14px",
+                  textDecoration: "none",
+                  padding: "10px 0",
+                  borderBottom: `1px solid ${color.borderSoft}`,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                {item.label} <span style={{ color: color.textFaint }}>→</span>
+              </Link>
+            ))}
+            <button
+              onClick={() => setTab("orders")}
+              style={{
+                background: "none",
+                border: "none",
+                color: color.textMuted,
+                fontSize: "14px",
+                textAlign: "left",
+                cursor: "pointer",
+                padding: "10px 0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              My orders ({orders.length}) <span style={{ color: color.textFaint }}>→</span>
+            </button>
+          </Card>
+        </div>
+      )}
+
+      {tab === "orders" &&
+        (orders.length === 0 ? (
+          <EmptyState
+            message="No orders yet"
+            action={
+              <LinkButton href="/products" size="lg">
+                Start shopping
+              </LinkButton>
+            }
+          />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {orders.map((order) => (
+              <Card key={order.id} style={{ overflow: "hidden" }}>
+                <div style={{ padding: "18px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <div>
+                    <p style={{ fontWeight: "600", marginBottom: "4px", fontSize: "15px" }}>{order.title}</p>
+                    <p style={{ color: color.textFaint, fontSize: "12px" }}>Order #{order.id}</p>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <Badge tint={statusColor[order.status]}>{order.status}</Badge>
+                    <Button variant="secondary" size="sm" onClick={() => toggleOrderDetails(order.id)}>
+                      {expandedOrder === order.id ? "Hide" : "Details"}
+                    </Button>
+                  </div>
+                </div>
+
+                {expandedOrder === order.id && (
+                  <div style={{ borderTop: `1px solid ${color.borderSoft}`, padding: "16px 20px", backgroundColor: color.surface }}>
+                    {detailsLoading === order.id ? (
+                      <div style={{ display: "flex", justifyContent: "center", padding: "16px" }}>
+                        <Spinner size={20} />
                       </div>
+                    ) : detailsError === order.id ? (
+                      <Alert>Failed to load order details. Try again.</Alert>
+                    ) : orderDetails[order.id]?.products.length === 0 ? (
+                      <p style={{ color: color.textDim, fontSize: "13px" }}>No products in this order</p>
+                    ) : (
+                      <>
+                        <p style={{ color: color.textDim, fontSize: "10px", letterSpacing: "2px", marginBottom: "10px" }}>PRODUCTS</p>
+                        {orderDetails[order.id]?.products.map((product) => (
+                          <div
+                            key={product.id}
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: `1px solid ${color.borderSoft}` }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+                              <div style={{ width: "28px", height: "28px", borderRadius: radius.sm, backgroundColor: product.color, border: `1px solid ${color.border}`, flexShrink: 0 }} />
+                              <div style={{ minWidth: 0 }}>
+                                <p style={{ fontSize: "13px", fontWeight: "600" }}>{product.name}</p>
+                                <p style={{ color: color.textFaint, fontSize: "12px" }}>Qty: {product.quantity}</p>
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                              <span style={{ fontSize: "13px", fontWeight: "700" }}>${(product.price * product.quantity).toFixed(2)}</span>
+                              {order.status === "create" && (
+                                <Button variant="danger" size="sm" onClick={() => handleRemoveProduct(order.id, product.id)}>
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </>
                     )}
                   </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        ))}
+
+      {tab === "edit" && (
+        <div style={{ maxWidth: "400px" }}>
+          {editSuccess && <Alert tone="success" style={{ marginBottom: "16px" }}>Profile updated successfully.</Alert>}
+          {editError && <Alert style={{ marginBottom: "16px" }}>{editError}</Alert>}
+
+          <form
+            noValidate
+            onSubmit={editFields.onSubmit(handleEditProfile)}
+            style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+          >
+            {[
+              { label: "Full name", key: "name", type: "text", placeholder: "Enter your full name", required: true },
+              { label: "Age", key: "age", type: "number", placeholder: "Enter your age", required: true },
+              { label: "Address (optional)", key: "address", type: "text", placeholder: "Enter your delivery address", required: false },
+            ].map((field) => (
+              <TextField
+                key={field.key}
+                label={field.label}
+                name={field.key}
+                type={field.type}
+                value={editForm[field.key as keyof typeof editForm]}
+                onChange={(e) => {
+                  setEditForm({ ...editForm, [field.key]: e.target.value });
+                  editFields.clear(field.key);
+                }}
+                placeholder={field.placeholder}
+                required={field.required}
+                min={field.key === "age" ? 1 : undefined}
+                max={field.key === "age" ? 120 : undefined}
+                error={editFields.errors[field.key]}
+              />
+            ))}
+            <Button type="submit" size="lg" full disabled={editLoading} style={{ marginTop: "4px" }}>
+              {editLoading ? "Saving..." : "Save changes"}
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {tab === "deposit" && (
+        <div style={{ maxWidth: "400px" }}>
+          <Card style={{ padding: "16px 20px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: color.textDim, fontSize: "14px" }}>Current balance</span>
+            <span style={{ fontWeight: "800", fontSize: "16px" }}>${client.balance.toFixed(2)}</span>
+          </Card>
+
+          {!stripePromise && (
+            <Alert tone="warning" style={{ marginBottom: "16px" }}>
+              Payments are unavailable: NEXT_PUBLIC_STRIPE_KEY is not set.
+            </Alert>
+          )}
+          {depositSuccess && (
+            <Alert tone="success" style={{ marginBottom: "16px" }}>
+              {depositSuccess}
+            </Alert>
+          )}
+          {depositError && <Alert style={{ marginBottom: "16px" }}>{depositError}</Alert>}
+
+          {!clientSecret ? (
+            <form
+              noValidate
+              onSubmit={depositFields.onSubmit(handleDeposit)}
+              style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+            >
+              <TextField
+                label="Amount ($)"
+                name="amount"
+                type="number"
+                value={depositAmount}
+                onChange={(e) => {
+                  setDepositAmount(e.target.value);
+                  depositFields.clear("amount");
+                }}
+                min="1"
+                step="0.01"
+                placeholder="Enter the amount to add"
+                required
+                error={depositFields.errors.amount}
+              />
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {[10, 25, 50, 100].map((amount) => (
+                  <Button key={amount} type="button" variant="secondary" size="sm" onClick={() => setDepositAmount(String(amount))}>
+                    ${amount}
+                  </Button>
                 ))}
               </div>
-            )}
-          </div>
-        )}
+              <Button type="submit" size="lg" full disabled={depositLoading || !stripePromise}>
+                {depositLoading ? "Processing..." : "Continue to payment"}
+              </Button>
 
-        {activeTab === "edit" && (
-          <div style={{ maxWidth: "400px" }}>
-            {editSuccess && <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>Profile updated successfully!</div>}
-            {editError && <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>{editError}</div>}
-
-            <form onSubmit={handleEditProfile} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              {[
-                { label: "Full name", key: "name", type: "text", placeholder: "Your name" },
-                { label: "Age", key: "age", type: "number", placeholder: "25" },
-                { label: "Address (optional)", key: "address", type: "text", placeholder: "Your address" },
-              ].map((field) => (
-                <div key={field.key}>
-                  <label style={{ display: "block", color: "#374151", fontSize: "13px", fontWeight: "500", marginBottom: "6px" }}>{field.label}</label>
-                  <input
-                    type={field.type}
-                    value={editForm[field.key as keyof typeof editForm]}
-                    onChange={(e) => setEditForm({ ...editForm, [field.key]: e.target.value })}
-                    placeholder={field.placeholder}
-                    required={field.key !== "address"}
-                    min={field.key === "age" ? "1" : undefined}
-                    max={field.key === "age" ? "120" : undefined}
-                    style={inputStyle}
-                  />
-                </div>
-              ))}
-              <button
-                type="submit"
-                disabled={editLoading}
-                style={{ backgroundColor: editLoading ? "#e5e7eb" : "#111", color: editLoading ? "#9ca3af" : "#fff", border: "none", padding: "13px", cursor: editLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px", marginTop: "4px" }}
-              >
-                {editLoading ? "Saving..." : "Save changes"}
-              </button>
+              <div style={{ borderTop: `1px solid ${color.borderSoft}`, marginTop: "20px", paddingTop: "20px" }}>
+                <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: color.textDim, marginBottom: "8px" }}>
+                  Demo top-up
+                </p>
+                <p style={{ color: color.textDim, fontSize: "12px", lineHeight: 1.6, marginBottom: "12px" }}>
+                  This is a portfolio project, so the balance can also be credited without a real card. Use it to try
+                  the cart and checkout. No money moves.
+                </p>
+                <Button type="button" variant="secondary" full onClick={handleDemoTopUp} disabled={demoLoading}>
+                  {demoLoading ? "Adding..." : "Add $100 for testing"}
+                </Button>
+              </div>
             </form>
-          </div>
-        )}
-
-        {activeTab === "deposit" && (
-          <div style={{ maxWidth: "400px" }}>
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "16px 20px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ color: "#6b7280", fontSize: "14px" }}>Current balance</span>
-              <span style={{ fontWeight: "700", fontSize: "16px" }}>${client.balance.toFixed(2)}</span>
-            </div>
-
-            {depositSuccess && <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>Payment successful! Your balance will update shortly.</div>}
-            {depositError && <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>{depositError}</div>}
-
-            {!clientSecret ? (
-              <form onSubmit={handleDeposit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div>
-                  <label style={{ display: "block", color: "#374151", fontSize: "13px", fontWeight: "500", marginBottom: "6px" }}>Amount ($)</label>
-                  <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} min="1" step="0.01" placeholder="0.00" required style={inputStyle} />
-                </div>
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  {[10, 25, 50, 100].map((amt) => (
-                    <button key={amt} type="button" onClick={() => setDepositAmount(String(amt))} style={{ background: "#f3f4f6", border: "1px solid #e5e7eb", color: "#374151", padding: "7px 16px", cursor: "pointer", fontSize: "13px", borderRadius: "6px", fontWeight: "500" }}>${amt}</button>
-                  ))}
-                </div>
-                <button type="submit" disabled={depositLoading} style={{ backgroundColor: depositLoading ? "#e5e7eb" : "#111", color: depositLoading ? "#9ca3af" : "#fff", border: "none", padding: "13px", cursor: depositLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px" }}>
-                  {depositLoading ? "Processing..." : "Continue to payment"}
-                </button>
-              </form>
-            ) : (
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                  <span style={{ color: "#6b7280", fontSize: "14px" }}>Amount: <strong style={{ color: "#111" }}>${parseFloat(depositAmount).toFixed(2)}</strong></span>
-                  <button onClick={() => setClientSecret(null)} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "13px" }}>← Back</button>
-                </div>
+          ) : (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <span style={{ color: color.textDim, fontSize: "14px" }}>
+                  Amount: <strong style={{ color: color.text }}>${parseFloat(depositAmount).toFixed(2)}</strong>
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => setClientSecret(null)}>
+                  ← Back
+                </Button>
+              </div>
+              {stripePromise && (
                 <Elements stripe={stripePromise}>
-                  <PaymentForm clientSecret={clientSecret} amount={parseFloat(depositAmount)} onSuccess={() => {
-                    setDepositSuccess(true); setClientSecret(null); setDepositAmount("");
-                    setTimeout(async () => {
-                      try { const me = await authFetch("/client/me"); setClient(me); } catch {}
-                    }, 2000);
-                  }} />
+                  <PaymentForm
+                    clientSecret={clientSecret}
+                    amount={parseFloat(depositAmount)}
+                    onSuccess={() => {
+                      setDepositSuccess("Payment successful. Your balance will update shortly.");
+                      setClientSecret(null);
+                      setDepositAmount("");
+                      setTimeout(() => {
+                        getMe()
+                          .then(setClient)
+                          .catch(() => {
+                          });
+                      }, 2000);
+                    }}
+                  />
                 </Elements>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "security" && (
+        <div style={{ maxWidth: "400px" }}>
+          {pwSuccess && <Alert tone="success" style={{ marginBottom: "16px" }}>Password updated successfully.</Alert>}
+          {pwError && <Alert style={{ marginBottom: "16px" }}>{pwError}</Alert>}
+
+          <form
+            noValidate
+            onSubmit={securityFields.onSubmit(handleChangePassword)}
+            style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+          >
+            {[
+              { label: "Current password", key: "old_password", placeholder: "Enter your current password", minLength: undefined },
+              { label: "New password", key: "new_password", placeholder: "Choose a new password, min. 8 characters", minLength: 8 },
+              { label: "Confirm new password", key: "confirm", placeholder: "Repeat the new password", minLength: undefined },
+            ].map((field) => (
+              <TextField
+                key={field.key}
+                label={field.label}
+                name={field.key}
+                type="password"
+                value={pwForm[field.key as keyof typeof pwForm]}
+                onChange={(e) => {
+                  setPwForm({ ...pwForm, [field.key]: e.target.value });
+                  securityFields.clear(field.key);
+                }}
+                required
+                minLength={field.minLength}
+                placeholder={field.placeholder}
+                error={securityFields.errors[field.key]}
+              />
+            ))}
+            <Button type="submit" size="lg" full disabled={pwLoading} style={{ marginTop: "4px" }}>
+              {pwLoading ? "Saving..." : "Update password"}
+            </Button>
+          </form>
+
+          <div style={{ marginTop: "40px", paddingTop: "28px", borderTop: `1px solid ${color.borderSoft}` }}>
+            <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: color.danger, marginBottom: "8px" }}>
+              Danger zone
+            </p>
+            <p style={{ color: color.textDim, fontSize: "13px", marginBottom: "16px" }}>
+              Once deleted, your account cannot be recovered.
+            </p>
+            <Button variant="danger" onClick={handleDeleteAccount} disabled={deleteLoading}>
+              {deleteLoading ? "Deleting..." : "Delete account"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {tab === "ai" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          <Card style={{ padding: "28px" }}>
+            <p style={{ fontSize: "16px", fontWeight: "700", marginBottom: "6px" }}>Personalized recommendations</p>
+            <p style={{ color: color.textDim, fontSize: "13px", marginBottom: "20px" }}>Based on your purchase history</p>
+            {!aiRecs ? (
+              <Button
+                disabled={aiRecsLoading}
+                onClick={async () => {
+                  setAiRecsLoading(true);
+                  try {
+                    setAiRecs(await getAiRecommendations());
+                  } catch {
+                    setAiRecs("Failed to load recommendations.");
+                  } finally {
+                    setAiRecsLoading(false);
+                  }
+                }}
+              >
+                {aiRecsLoading ? "Loading..." : "Get recommendations"}
+              </Button>
+            ) : (
+              <>
+                <p style={{ color: color.textMuted, fontSize: "14px", lineHeight: "1.7", whiteSpace: "pre-line" }}>{aiRecs}</p>
+                <Button variant="secondary" size="sm" onClick={() => setAiRecs("")} style={{ marginTop: "16px" }}>
+                  Refresh
+                </Button>
+              </>
+            )}
+          </Card>
+
+          <Card style={{ padding: "28px" }}>
+            <p style={{ fontSize: "16px", fontWeight: "700", marginBottom: "6px" }}>Store assistant</p>
+            <p style={{ color: color.textDim, fontSize: "13px", marginBottom: "20px" }}>
+              Ask anything about products, delivery or payments
+            </p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!chatMessage.trim()) return;
+                setChatLoading(true);
+                setChatReply("");
+                try {
+                  setChatReply(await aiChat(chatMessage));
+                } catch {
+                  setChatReply("Something went wrong.");
+                } finally {
+                  setChatLoading(false);
+                }
+              }}
+              style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}
+            >
+              <Input
+                type="text"
+                placeholder="Ask about products, delivery or payments"
+                value={chatMessage}
+                onChange={(e) => setChatMessage(e.target.value)}
+                style={{ flex: "1 1 200px" }}
+              />
+              <Button type="submit" disabled={chatLoading}>
+                {chatLoading ? "..." : "Send"}
+              </Button>
+            </form>
+            {chatReply && (
+              <div
+                style={{
+                  backgroundColor: color.surfaceInset,
+                  border: `1px solid ${color.border}`,
+                  borderRadius: radius.sm,
+                  padding: "16px",
+                  fontSize: "14px",
+                  color: color.textMuted,
+                  lineHeight: "1.7",
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {chatReply}
               </div>
             )}
-          </div>
-        )}
-
-        {activeTab === "security" && (
-          <div style={{ maxWidth: "400px" }}>
-            {pwSuccess && <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>Password updated successfully!</div>}
-            {pwError && <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>{pwError}</div>}
-
-            <form onSubmit={handleChangePassword} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              {[
-                { label: "Current password", key: "old_password", placeholder: "Current password" },
-                { label: "New password", key: "new_password", placeholder: "Min. 8 characters" },
-                { label: "Confirm new password", key: "confirm", placeholder: "Repeat new password" },
-              ].map((field) => (
-                <div key={field.key}>
-                  <label style={{ display: "block", color: "#374151", fontSize: "13px", fontWeight: "500", marginBottom: "6px" }}>{field.label}</label>
-                  <input type="password" value={pwForm[field.key as keyof typeof pwForm]} onChange={(e) => setPwForm({ ...pwForm, [field.key]: e.target.value })} required placeholder={field.placeholder} style={inputStyle} />
-                </div>
-              ))}
-              <button type="submit" disabled={pwLoading} style={{ backgroundColor: pwLoading ? "#e5e7eb" : "#111", color: pwLoading ? "#9ca3af" : "#fff", border: "none", padding: "13px", cursor: pwLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "14px", borderRadius: "8px", marginTop: "4px" }}>
-                {pwLoading ? "Saving..." : "Update password"}
-              </button>
-            </form>
-
-            <div style={{ marginTop: "40px", paddingTop: "28px", borderTop: "1px solid #f3f4f6" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "8px" }}>Danger zone</h3>
-              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "16px" }}>Once deleted, your account cannot be recovered.</p>
-              <button
-                onClick={handleDeleteAccount}
-                disabled={deleteLoading}
-                style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", padding: "11px 24px", cursor: deleteLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px" }}
-              >
-                {deleteLoading ? "Deleting..." : "Delete account"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "ai" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "28px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "6px" }}>Personalized Recommendations</h3>
-              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "20px" }}>Based on your purchase history</p>
-              {!aiRecs ? (
-                <button
-                  onClick={async () => {
-                    setAiRecsLoading(true);
-                    try { const res = await getAiRecommendations(); setAiRecs(res); }
-                    catch { setAiRecs("Failed to load recommendations."); }
-                    finally { setAiRecsLoading(false); }
-                  }}
-                  disabled={aiRecsLoading}
-                  style={{ backgroundColor: aiRecsLoading ? "#e5e7eb" : "#111", color: aiRecsLoading ? "#9ca3af" : "#fff", border: "none", padding: "11px 24px", cursor: aiRecsLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px" }}
-                >
-                  {aiRecsLoading ? "Loading..." : "Get recommendations"}
-                </button>
-              ) : (
-                <div>
-                  <p style={{ color: "#374151", fontSize: "14px", lineHeight: "1.7", whiteSpace: "pre-line" }}>{aiRecs}</p>
-                  <button onClick={() => setAiRecs("")} style={{ marginTop: "16px", background: "none", border: "1px solid #e5e7eb", color: "#6b7280", padding: "8px 16px", cursor: "pointer", fontSize: "12px", borderRadius: "6px" }}>Refresh</button>
-                </div>
-              )}
-            </div>
-
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "28px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "6px" }}>Store Assistant</h3>
-              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "20px" }}>Ask anything about products, delivery or payments</p>
-              <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
-                <input
-                  type="text"
-                  placeholder="e.g. What shoes do you recommend for running?"
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.form?.requestSubmit(); }}
-                  style={{ flex: 1, backgroundColor: "#fff", border: "1px solid #e5e7eb", color: "#111", padding: "10px 14px", fontSize: "14px", borderRadius: "8px", outline: "none" }}
-                />
-                <button
-                  onClick={async () => {
-                    if (!chatMessage.trim()) return;
-                    setChatLoading(true); setChatReply("");
-                    try { const res = await aiChat(chatMessage); setChatReply(res); }
-                    catch { setChatReply("Something went wrong."); }
-                    finally { setChatLoading(false); }
-                  }}
-                  disabled={chatLoading}
-                  style={{ backgroundColor: chatLoading ? "#e5e7eb" : "#111", color: chatLoading ? "#9ca3af" : "#fff", border: "none", padding: "10px 20px", cursor: chatLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px", whiteSpace: "nowrap" }}
-                >
-                  {chatLoading ? "..." : "Send"}
-                </button>
-              </div>
-              {chatReply && (
-                <div style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px", fontSize: "14px", color: "#374151", lineHeight: "1.7", whiteSpace: "pre-line" }}>
-                  {chatReply}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+          </Card>
+        </div>
+      )}
+    </Page>
   );
 }

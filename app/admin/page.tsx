@@ -1,115 +1,284 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  authFetch, createProduct, deleteProduct, moderateProduct,
-  getAdminOrders, getAdminClients, updateOrderStatus, logout,
-  getCategories, createCategory, deleteCategory, updateProduct, generateProductDescription,
   Category,
+  Client,
+  createCategory,
+  createProduct,
+  deleteCategory,
+  deleteProduct,
+  generateProductDescription,
+  getAccessToken,
+  getAdminClients,
+  getAdminOrders,
+  getAdminProducts,
+  getCategories,
+  moderateProduct,
+  Order,
+  Product,
+  updateOrderStatus,
+  updateProduct,
+  wsUrl,
 } from "@/lib/api";
-import { getAccessToken } from "@/lib/api";
+import { LogoutButton, Nav, NavLink, Page } from "@/components/nav";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Field,
+  FieldError,
+  Input,
+  PageLoader,
+  PageTitle,
+  Select,
+  StatCard,
+  Tabs,
+  Textarea,
+  TextField,
+} from "@/components/ui";
+import { useFieldErrors } from "@/lib/formErrors";
+import { color, radius, statusColor } from "@/lib/theme";
 
-interface Product { id: number; name: string; price: number; color: string; status: string; image_url?: string | null; quantity: number; category?: { id: number; name: string } | null; }
-interface Order { id: number; title: string; client_id: number; status: string; }
-interface Client { id: number; name: string; email: string; age: number; balance: number; role?: string; }
+const TABS = ["products", "orders", "categories", "stats"] as const;
+type Tab = (typeof TABS)[number];
+
+const TAB_LABELS: Record<Tab, string> = {
+  products: "Products",
+  orders: "Orders",
+  categories: "Categories",
+  stats: "Stats",
+};
 
 type ProductFilter = "all" | "accept" | "pending" | "rejected";
-type Tab = "products" | "orders" | "categories" | "stats";
+const FILTERS: readonly ProductFilter[] = ["all", "accept", "pending", "rejected"];
 
-const PRODUCT_STATUS_COLOR: Record<string, string> = { accept: "#16a34a", pending: "#d97706", rejected: "#dc2626" };
-const PRODUCT_STATUS_BG: Record<string, string> = { accept: "#f0fdf4", pending: "#fffbeb", rejected: "#fef2f2" };
-const ORDER_STATUS_COLOR: Record<string, string> = { create: "#d97706", completed: "#16a34a", cancelled: "#dc2626" };
-const ORDER_STATUS_BG: Record<string, string> = { create: "#fffbeb", completed: "#f0fdf4", cancelled: "#fef2f2" };
+const PRODUCT_GRID = "48px 56px minmax(0, 1fr) 100px 72px 60px 120px 190px";
+const ORDER_GRID = "60px minmax(0, 1fr) 110px 120px 200px";
 
-interface Notification { id: number; text: string; }
+interface Notification {
+  id: number;
+  text: string;
+}
+
+interface ProductFields {
+  name: string;
+  price: string;
+  color: string;
+  image_url: string;
+  quantity: string;
+}
+
+function ProductFieldsGrid({
+  form,
+  onChange,
+  errors,
+}: {
+  form: ProductFields;
+  onChange: (patch: Partial<ProductFields>) => void;
+  errors: Record<string, string>;
+}) {
+  const small = { padding: "9px 12px", fontSize: "13px" };
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", alignItems: "start" }}>
+      <TextField
+        label="Name"
+        name="name"
+        type="text"
+        value={form.name}
+        onChange={(e) => onChange({ name: e.target.value })}
+        required
+        placeholder="Enter the product name"
+        style={small}
+        error={errors.name}
+      />
+      <TextField
+        label="Image URL"
+        name="image_url"
+        type="url"
+        value={form.image_url}
+        onChange={(e) => onChange({ image_url: e.target.value })}
+        placeholder="Paste a link to the image"
+        style={small}
+        error={errors.image_url}
+      />
+      <TextField
+        label="Price ($)"
+        name="price"
+        type="number"
+        value={form.price}
+        onChange={(e) => onChange({ price: e.target.value })}
+        required
+        min="0"
+        step="0.01"
+        placeholder="Enter the price"
+        style={small}
+        error={errors.price}
+      />
+      <TextField
+        label="Stock"
+        name="quantity"
+        type="number"
+        value={form.quantity}
+        onChange={(e) => onChange({ quantity: e.target.value })}
+        min="0"
+        placeholder="Enter how many are in stock"
+        style={small}
+        error={errors.quantity}
+      />
+      <Field label="Color" error={errors.color}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <input
+            type="color"
+            value={form.color}
+            onChange={(e) => onChange({ color: e.target.value })}
+            aria-label="Colour picker"
+            style={{ width: "36px", height: "34px", border: `1px solid ${color.border}`, borderRadius: radius.sm, cursor: "pointer", padding: "2px", backgroundColor: color.surfaceInset }}
+          />
+          <Input
+            name="color"
+            type="text"
+            value={form.color}
+            onChange={(e) => onChange({ color: e.target.value })}
+            placeholder="Enter a hex colour"
+            style={{ ...small, flex: 1 }}
+            aria-invalid={errors.color ? true : undefined}
+          />
+        </div>
+      </Field>
+    </div>
+  );
+}
+
+const EMPTY_CREATE = { name: "", price: "", color: "#000000", image_url: "", description: "", quantity: "0" };
 
 export default function AdminPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("products");
+
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<ProductFilter>("all");
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", price: "", color: "#000000", image_url: "", description: "", quantity: "0" });
   const [error, setError] = useState("");
 
-  // Edit product
+  const [filter, setFilter] = useState<ProductFilter>("all");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(EMPTY_CREATE);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [genDescLoading, setGenDescLoading] = useState(false);
+
   const [editProductId, setEditProductId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ name: "", price: "", color: "#000000", image_url: "", quantity: "0", category_id: "" });
   const [editLoading, setEditLoading] = useState(false);
 
-  // Categories
   const [catName, setCatName] = useState("");
   const [catLoading, setCatLoading] = useState(false);
   const [catError, setCatError] = useState("");
 
-  // AI description
-  const [genDescLoading, setGenDescLoading] = useState(false);
+  const createFields = useFieldErrors();
+  const editFields = useFieldErrors();
+  const catFields = useFieldErrors();
 
-  // WebSocket notifications
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    Promise.all([authFetch("/product/admin/all?limit=100"), getAdminOrders(), getAdminClients(), getCategories()])
-      .then(([p, o, c, cats]) => { setProducts(p); setOrders(o); setClients(c); setCategories(cats); })
+    Promise.all([getAdminProducts(100), getAdminOrders(), getAdminClients(), getCategories()])
+      .then(([p, o, c, cats]) => {
+        setProducts(p);
+        setOrders(o);
+        setClients(c);
+        setCategories(cats);
+      })
       .catch(() => router.push("/login"))
       .finally(() => setLoading(false));
 
     const token = getAccessToken();
     if (token) {
-      const ws = new WebSocket(`wss://bohdan-shop.duckdns.org/ws/admin?token=${token}`);
+      const ws = new WebSocket(`${wsUrl("/ws/admin")}?token=${token}`);
       wsRef.current = ws;
       ws.onmessage = (e) => {
-        const notif: Notification = { id: Date.now(), text: e.data };
-        setNotifications((prev) => [notif, ...prev.slice(0, 9)]);
-        setTimeout(() => setNotifications((prev) => prev.filter((n) => n.id !== notif.id)), 6000);
+        const notification: Notification = { id: Date.now(), text: String(e.data) };
+        setNotifications((prev) => [notification, ...prev.slice(0, 9)]);
+        setTimeout(() => setNotifications((prev) => prev.filter((n) => n.id !== notification.id)), 6000);
       };
     }
 
-    return () => { wsRef.current?.close(); };
-  }, []);
+    return () => wsRef.current?.close();
+  }, [router]);
 
-  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault(); setError("");
+  function reportError(err: unknown) {
+    setError(err instanceof Error ? err.message : "Something went wrong");
+  }
+
+  async function handleCreate() {
+    setError("");
+    setCreateLoading(true);
     try {
-      await createProduct({ name: form.name, price: parseFloat(form.price), color: form.color, image_url: form.image_url || null, description: form.description || null, quantity: parseInt(form.quantity) || 0 });
-      setForm({ name: "", price: "", color: "#000000", image_url: "", description: "", quantity: "0" });
+      await createProduct({
+        name: form.name,
+        price: parseFloat(form.price),
+        color: form.color,
+        image_url: form.image_url || null,
+        description: form.description || null,
+        quantity: parseInt(form.quantity, 10) || 0,
+      });
+      setForm(EMPTY_CREATE);
       setShowForm(false);
-      const data = await authFetch("/product/admin/all?limit=100");
-      setProducts(data);
-    } catch (err: unknown) { if (err instanceof Error) setError(err.message); }
+      setProducts(await getAdminProducts(100));
+    } catch (err: unknown) {
+      reportError(err);
+    } finally {
+      setCreateLoading(false);
+    }
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("Delete this product?")) return;
-    try { await deleteProduct(id); setProducts((prev) => prev.filter((p) => p.id !== id)); }
-    catch (err: unknown) { if (err instanceof Error) setError(err.message); }
+    if (!window.confirm("Delete this product?")) return;
+    try {
+      await deleteProduct(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: unknown) {
+      reportError(err);
+    }
   }
 
   async function handleModerate(id: number, status: "accept" | "rejected") {
-    try { const updated = await moderateProduct(id, status); setProducts((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p)); }
-    catch (err: unknown) { if (err instanceof Error) setError(err.message); }
+    try {
+      const updated = await moderateProduct(id, status);
+      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updated } : p)));
+    } catch (err: unknown) {
+      reportError(err);
+    }
   }
 
   async function handleOrderStatus(id: number, status: string) {
-    try { const updated = await updateOrderStatus(id, status); setOrders((prev) => prev.map((o) => o.id === id ? { ...o, ...updated } : o)); }
-    catch (err: unknown) { if (err instanceof Error) setError(err.message); }
+    try {
+      const updated = await updateOrderStatus(id, status);
+      setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...updated } : o)));
+    } catch (err: unknown) {
+      reportError(err);
+    }
   }
 
   function startEdit(product: Product) {
     setEditProductId(product.id);
-    setEditForm({ name: product.name, price: String(product.price), color: product.color, image_url: product.image_url || "", quantity: String(product.quantity), category_id: String(product.category?.id || "") });
+    setEditForm({
+      name: product.name,
+      price: String(product.price),
+      color: product.color,
+      image_url: product.image_url ?? "",
+      quantity: String(product.quantity),
+      category_id: product.category ? String(product.category.id) : "",
+    });
   }
 
-  async function handleEditSave(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!editProductId) return;
+  async function handleEditSave() {
+    if (editProductId === null) return;
     setEditLoading(true);
     try {
       const updated = await updateProduct(editProductId, {
@@ -117,37 +286,43 @@ export default function AdminPage() {
         price: parseFloat(editForm.price),
         color: editForm.color,
         image_url: editForm.image_url || null,
-        quantity: parseInt(editForm.quantity) || 0,
-        category_id: editForm.category_id ? parseInt(editForm.category_id) : null,
+        quantity: parseInt(editForm.quantity, 10) || 0,
+        category_id: editForm.category_id ? parseInt(editForm.category_id, 10) : null,
       });
-      setProducts((prev) => prev.map((p) => p.id === editProductId ? { ...p, ...updated } : p));
+      setProducts((prev) => prev.map((p) => (p.id === editProductId ? { ...p, ...updated } : p)));
       setEditProductId(null);
-    } catch (err: unknown) { if (err instanceof Error) setError(err.message); }
-    finally { setEditLoading(false); }
-  }
-
-  async function handleDeleteCategory(id: number) {
-    if (!confirm("Delete this category?")) return;
-    try {
-      await deleteCategory(id);
-      const updated = await getCategories(100, 0);
-      setCategories(updated);
+    } catch (err: unknown) {
+      reportError(err);
+    } finally {
+      setEditLoading(false);
     }
-    catch (err: unknown) { if (err instanceof Error) setError(err.message); }
   }
 
-  async function handleCreateCategory(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault(); setCatError("");
+  async function handleCreateCategory() {
+    setCatError("");
     setCatLoading(true);
     try {
       const created = await createCategory(catName);
       setCategories((prev) => [...prev, created]);
       setCatName("");
-    } catch (err: unknown) { if (err instanceof Error) setCatError(err.message); }
-    finally { setCatLoading(false); }
+    } catch (err: unknown) {
+      setCatError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setCatLoading(false);
+    }
   }
 
-  const productCounts = {
+  async function handleDeleteCategory(id: number) {
+    if (!window.confirm("Delete this category?")) return;
+    try {
+      await deleteCategory(id);
+      setCategories(await getCategories(100));
+    } catch (err: unknown) {
+      reportError(err);
+    }
+  }
+
+  const productCounts: Record<ProductFilter, number> = {
     all: products.length,
     accept: products.filter((p) => p.status === "accept").length,
     pending: products.filter((p) => p.status === "pending").length,
@@ -160,324 +335,498 @@ export default function AdminPage() {
   };
   const visibleProducts = filter === "all" ? products : products.filter((p) => p.status === filter);
 
-  const inputStyle = { backgroundColor: "#fff", border: "1px solid #e5e7eb", color: "#111", padding: "9px 12px", fontSize: "13px", borderRadius: "6px", outline: "none", width: "100%" };
+  if (loading) return <PageLoader />;
 
-  if (loading) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ width: "32px", height: "32px", border: "2px solid #e5e7eb", borderTop: "2px solid #111", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-    </div>
+  const nav = (
+    <Nav home="/products">
+      <NavLink href="/products">Storefront</NavLink>
+      <LogoutButton />
+    </Nav>
   );
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f9fafb", color: "#111" }}>
-      <style>{`* { box-sizing: border-box; } input::placeholder { color: #9ca3af; } @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }`}</style>
-
-      {/* WS Notifications */}
+    <Page nav={nav} width="1200px">
       {notifications.length > 0 && (
         <div style={{ position: "fixed", top: "80px", right: "24px", zIndex: 1000, display: "flex", flexDirection: "column", gap: "8px" }}>
           {notifications.map((n) => (
-            <div key={n.id} style={{ backgroundColor: "#111", color: "#fff", padding: "12px 18px", borderRadius: "10px", fontSize: "13px", fontWeight: "500", maxWidth: "320px", boxShadow: "0 4px 16px rgba(0,0,0,0.15)", animation: "slideIn 0.3s ease", display: "flex", alignItems: "center", gap: "10px" }}>
-              <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#16a34a", flexShrink: 0 }} />
+            <div
+              key={n.id}
+              style={{
+                backgroundColor: color.surfaceRaised,
+                border: `1px solid ${color.border}`,
+                color: color.text,
+                padding: "12px 18px",
+                borderRadius: radius.sm,
+                fontSize: "13px",
+                maxWidth: "320px",
+                animation: "slideIn 0.3s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <span style={{ width: "8px", height: "8px", borderRadius: radius.circle, backgroundColor: color.success, flexShrink: 0 }} />
               {n.text}
-              <button onClick={() => setNotifications((prev) => prev.filter((x) => x.id !== n.id))} style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", marginLeft: "auto", fontSize: "16px", lineHeight: 1 }}>×</button>
+              <button
+                onClick={() => setNotifications((prev) => prev.filter((x) => x.id !== n.id))}
+                aria-label="Dismiss"
+                style={{ background: "none", border: "none", color: color.textDim, cursor: "pointer", marginLeft: "auto", fontSize: "16px", lineHeight: 1 }}
+              >
+                ×
+              </button>
             </div>
           ))}
         </div>
       )}
 
-      <nav style={{ backgroundColor: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 40px", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Link href="/products" style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "4px", color: "#111", textDecoration: "none" }}>SHOP</Link>
-        <span style={{ color: "#9ca3af", fontSize: "13px", fontWeight: "500" }}>Admin Panel</span>
-        <button onClick={() => { logout(); router.push("/login"); }} style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", padding: "7px 16px", cursor: "pointer", fontSize: "13px", borderRadius: "6px" }}>Logout</button>
-      </nav>
+      <div style={{ marginBottom: "32px" }}>
+        <p style={{ color: color.textDim, fontSize: "11px", letterSpacing: "3px", marginBottom: "8px" }}>DASHBOARD</p>
+        <PageTitle>Admin panel</PageTitle>
+      </div>
 
-      <main style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px" }}>
-        <div style={{ marginBottom: "32px" }}>
-          <p style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "500", marginBottom: "4px" }}>DASHBOARD</p>
-          <h1 style={{ fontSize: "28px", fontWeight: "700" }}>Admin Panel</h1>
-        </div>
+      {error && <Alert style={{ marginBottom: "20px" }}>{error}</Alert>}
 
-        {error && (
-          <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "12px 16px", borderRadius: "8px", marginBottom: "20px", fontSize: "13px" }}>{error}</div>
-        )}
+      <Tabs
+        tabs={TABS}
+        active={tab}
+        onChange={setTab}
+        labels={TAB_LABELS}
+        badges={{ products: productCounts.pending, orders: orderCounts.create }}
+      />
 
-        <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb", marginBottom: "32px" }}>
-          {(["products", "orders", "categories", "stats"] as Tab[]).map((t) => (
-            <button key={t} onClick={() => setTab(t)} style={{ background: "none", border: "none", color: tab === t ? "#111" : "#6b7280", cursor: "pointer", fontSize: "14px", padding: "10px 24px", borderBottom: tab === t ? "2px solid #111" : "2px solid transparent", fontWeight: tab === t ? "600" : "400", display: "flex", alignItems: "center", gap: "8px", textTransform: "capitalize" }}>
-              {t}
-              {t === "orders" && orderCounts.create > 0 && <span style={{ backgroundColor: "#f59e0b", color: "#fff", borderRadius: "50%", width: "18px", height: "18px", fontSize: "10px", fontWeight: "700", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{orderCounts.create}</span>}
-              {t === "products" && productCounts.pending > 0 && <span style={{ backgroundColor: "#f59e0b", color: "#fff", borderRadius: "50%", width: "18px", height: "18px", fontSize: "10px", fontWeight: "700", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{productCounts.pending}</span>}
-            </button>
-          ))}
-        </div>
-
-        {tab === "categories" && (
-          <div style={{ maxWidth: "600px" }}>
-            <form onSubmit={handleCreateCategory} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "24px", marginBottom: "20px" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "14px" }}>New category</h3>
-              {catError && <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "10px 14px", borderRadius: "8px", marginBottom: "12px", fontSize: "13px" }}>{catError}</div>}
-              <div style={{ display: "flex", gap: "10px" }}>
-                <input type="text" value={catName} onChange={(e) => setCatName(e.target.value)} required placeholder="Category name" style={{ ...inputStyle, flex: 1 }} />
-                <button type="submit" disabled={catLoading} style={{ backgroundColor: catLoading ? "#e5e7eb" : "#111", color: catLoading ? "#9ca3af" : "#fff", border: "none", padding: "9px 20px", cursor: catLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "6px", whiteSpace: "nowrap" }}>
-                  {catLoading ? "Adding..." : "+ Add"}
+      {tab === "products" && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "24px" }}>
+            {FILTERS.map((f) => {
+              const active = filter === f;
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  style={{
+                    backgroundColor: active ? color.accent : color.surfaceRaised,
+                    color: active ? color.onAccent : color.text,
+                    border: `1px solid ${active ? color.accent : color.border}`,
+                    padding: "16px 20px",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    borderRadius: radius.md,
+                  }}
+                >
+                  <p style={{ fontSize: "10px", fontWeight: "700", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "6px", opacity: 0.7 }}>
+                    {f}
+                  </p>
+                  <p style={{ fontSize: "28px", fontWeight: "800", letterSpacing: "-1px" }}>{productCounts[f]}</p>
                 </button>
-              </div>
-            </form>
-
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
-              <div style={{ padding: "12px 20px", backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                <span style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "600" }}>CATEGORIES ({categories.length})</span>
-              </div>
-              {categories.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px", color: "#9ca3af", fontSize: "14px" }}>No categories yet</div>
-              ) : (
-                categories.map((cat, i) => (
-                  <div key={cat.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: i < categories.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                    <span style={{ fontSize: "14px", fontWeight: "500" }}>{cat.name}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <span style={{ color: "#9ca3af", fontSize: "12px" }}>#{cat.id}</span>
-                      <button onClick={() => handleDeleteCategory(cat.id)} style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", padding: "4px 12px", cursor: "pointer", fontSize: "12px", borderRadius: "6px", fontWeight: "600" }}>Delete</button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+              );
+            })}
           </div>
-        )}
 
-        {tab === "stats" && (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "24px" }}>
-              {[
-                { label: "Total products", value: products.length },
-                { label: "Total orders", value: orders.length },
-                { label: "Total clients", value: clients.length },
-                { label: "Pending review", value: productCounts.pending, highlight: productCounts.pending > 0 },
-              ].map((s) => (
-                <div key={s.label} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "20px 24px" }}>
-                  <p style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "500", marginBottom: "8px" }}>{s.label}</p>
-                  <p style={{ fontSize: "32px", fontWeight: "800", color: s.highlight ? "#d97706" : "#111" }}>{s.value}</p>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "24px" }}>
-              {[
-                { title: "Products by status", items: [{ label: "Accepted", value: productCounts.accept, color: "#16a34a" }, { label: "Pending", value: productCounts.pending, color: "#d97706" }, { label: "Rejected", value: productCounts.rejected, color: "#dc2626" }] },
-                { title: "Orders by status", items: [{ label: "Active", value: orderCounts.create, color: "#d97706" }, { label: "Completed", value: orderCounts.completed, color: "#16a34a" }, { label: "Cancelled", value: orderCounts.cancelled, color: "#dc2626" }] },
-                { title: "Clients by role", items: [{ label: "Client", value: clients.filter((c) => c.role === "client").length, color: "#6b7280" }, { label: "Moderator", value: clients.filter((c) => c.role === "moderator").length, color: "#2563eb" }, { label: "Superadmin", value: clients.filter((c) => c.role === "superadmin").length, color: "#7c3aed" }] },
-              ].map((card) => (
-                <div key={card.title} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "20px 24px" }}>
-                  <p style={{ fontSize: "14px", fontWeight: "600", marginBottom: "16px" }}>{card.title}</p>
-                  {card.items.map((item) => (
-                    <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f3f4f6" }}>
-                      <span style={{ color: "#6b7280", fontSize: "13px" }}>{item.label}</span>
-                      <span style={{ color: item.color, fontSize: "18px", fontWeight: "700" }}>{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "24px" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "16px" }}>Recent clients</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "48px 1fr 1fr 100px 100px", padding: "8px 0 12px", borderBottom: "1px solid #f3f4f6" }}>
-                {["ID", "Name", "Email", "Balance", "Role"].map((h) => (
-                  <span key={h} style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "600" }}>{h}</span>
-                ))}
-              </div>
-              {clients.slice(0, 10).map((c) => (
-                <div key={c.id} style={{ display: "grid", gridTemplateColumns: "48px 1fr 1fr 100px 100px", padding: "12px 0", borderBottom: "1px solid #f9fafb", alignItems: "center" }}>
-                  <span style={{ color: "#9ca3af", fontSize: "12px" }}>#{c.id}</span>
-                  <span style={{ fontSize: "13px", fontWeight: "600" }}>{c.name}</span>
-                  <span style={{ color: "#6b7280", fontSize: "13px" }}>{c.email}</span>
-                  <span style={{ fontSize: "13px", fontWeight: "600" }}>${c.balance.toFixed(2)}</span>
-                  <span style={{ color: "#6b7280", fontSize: "12px", textTransform: "capitalize" }}>{c.role ?? "client"}</span>
-                </div>
-              ))}
-            </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+            <Button
+              variant={showForm ? "secondary" : "primary"}
+              onClick={() => {
+                setShowForm(!showForm);
+                setEditProductId(null);
+              }}
+            >
+              {showForm ? "Cancel" : "+ Add product"}
+            </Button>
           </div>
-        )}
 
-        {tab === "orders" && (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "24px" }}>
-              {[{ label: "Active", key: "create", value: orderCounts.create }, { label: "Completed", key: "completed", value: orderCounts.completed }, { label: "Cancelled", key: "cancelled", value: orderCounts.cancelled }].map((s) => (
-                <div key={s.key} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "20px 24px" }}>
-                  <p style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "500", marginBottom: "8px" }}>{s.label}</p>
-                  <p style={{ fontSize: "28px", fontWeight: "800", color: ORDER_STATUS_COLOR[s.key] }}>{s.value}</p>
-                </div>
-              ))}
-            </div>
+          {showForm && (
+            <Card style={{ padding: "24px", marginBottom: "20px" }}>
+              <form noValidate onSubmit={createFields.onSubmit(handleCreate)}>
+                <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: color.textDim, marginBottom: "16px" }}>
+                  New product
+                </p>
 
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 100px 120px 200px", padding: "12px 20px", backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["ID", "Title", "Client", "Status", "Actions"].map((h) => (
-                  <span key={h} style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "600" }}>{h}</span>
-                ))}
-              </div>
-              {orders.length === 0 && <div style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}>No orders</div>}
-              {orders.map((order) => (
-                <div key={order.id} style={{ display: "grid", gridTemplateColumns: "60px 1fr 100px 120px 200px", padding: "14px 20px", borderBottom: "1px solid #f3f4f6", alignItems: "center" }}>
-                  <span style={{ color: "#9ca3af", fontSize: "13px" }}>#{order.id}</span>
-                  <span style={{ fontSize: "14px", fontWeight: "600" }}>{order.title}</span>
-                  <span style={{ color: "#6b7280", fontSize: "13px" }}>Client #{order.client_id}</span>
-                  <span style={{ display: "inline-block", backgroundColor: ORDER_STATUS_BG[order.status] || "#f3f4f6", color: ORDER_STATUS_COLOR[order.status] || "#6b7280", padding: "3px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "600", textTransform: "capitalize", width: "fit-content" }}>
-                    {order.status}
-                  </span>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    {order.status === "create" && (
-                      <>
-                        <button onClick={() => handleOrderStatus(order.id, "completed")} style={{ backgroundColor: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", padding: "5px 12px", cursor: "pointer", fontSize: "12px", borderRadius: "6px", fontWeight: "600" }}>Complete</button>
-                        <button onClick={() => handleOrderStatus(order.id, "cancelled")} style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", padding: "5px 12px", cursor: "pointer", fontSize: "12px", borderRadius: "6px", fontWeight: "600" }}>Cancel</button>
-                      </>
-                    )}
-                    {order.status === "completed" && (
-                      <button onClick={() => handleOrderStatus(order.id, "cancelled")} style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", padding: "5px 12px", cursor: "pointer", fontSize: "12px", borderRadius: "6px", fontWeight: "600" }}>Refund</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+                <ProductFieldsGrid
+                  form={form}
+                  errors={createFields.errors}
+                  onChange={(patch) => {
+                    setForm((prev) => ({ ...prev, ...patch }));
+                    Object.keys(patch).forEach(createFields.clear);
+                  }}
+                />
 
-        {tab === "products" && (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "24px" }}>
-              {(["all", "accept", "pending", "rejected"] as ProductFilter[]).map((s) => (
-                <button key={s} onClick={() => setFilter(s)} style={{ backgroundColor: filter === s ? "#111" : "#fff", color: filter === s ? "#fff" : "#374151", border: "1px solid #e5e7eb", padding: "16px 20px", cursor: "pointer", textAlign: "left", borderRadius: "10px", transition: "all 0.15s" }}>
-                  <p style={{ fontSize: "12px", fontWeight: "500", marginBottom: "6px", textTransform: "capitalize", opacity: 0.7 }}>{s === "all" ? "All" : s}</p>
-                  <p style={{ fontSize: "28px", fontWeight: "800" }}>{productCounts[s]}</p>
-                </button>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
-              <button onClick={() => { setShowForm(!showForm); setEditProductId(null); }} style={{ backgroundColor: showForm ? "#f9fafb" : "#111", color: showForm ? "#6b7280" : "#fff", border: showForm ? "1px solid #e5e7eb" : "none", padding: "9px 20px", cursor: "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px" }}>
-                {showForm ? "Cancel" : "+ Add product"}
-              </button>
-            </div>
-
-            {showForm && (
-              <form onSubmit={handleCreate} style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "24px", marginBottom: "20px" }}>
-                <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "16px" }}>New product</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 80px 1fr", gap: "12px", alignItems: "end" }}>
-                  <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Name</label><input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Product name" style={inputStyle} /></div>
-                  <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Image URL</label><input type="url" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." style={inputStyle} /></div>
-                  <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Price ($)</label><input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required min="0" step="0.01" placeholder="0.00" style={inputStyle} /></div>
-                  <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Stock</label><input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} min="0" placeholder="0" style={inputStyle} /></div>
-                  <div>
-                    <label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Color</label>
-                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                      <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} style={{ width: "36px", height: "34px", border: "1px solid #e5e7eb", borderRadius: "6px", cursor: "pointer", padding: "2px" }} />
-                      <input type="text" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} style={{ ...inputStyle, flex: 1 }} placeholder="#000000" />
-                    </div>
-                  </div>
-                </div>
-                <div style={{ marginTop: "12px" }}>
-                  <label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Description</label>
-                  <textarea
+                <Field label="Description" style={{ marginTop: "12px" }}>
+                  <Textarea
+                    name="description"
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    placeholder="Product description..."
+                    placeholder="Describe the product, or generate it below"
                     rows={3}
-                    style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+                    style={{ padding: "9px 12px", fontSize: "13px" }}
                   />
-                </div>
-                <div style={{ marginTop: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-                  <button
+                </Field>
+
+                <div style={{ marginTop: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <Button
                     type="button"
+                    variant="secondary"
                     disabled={genDescLoading || !form.name}
                     onClick={async () => {
-                      if (!form.name) return;
                       setGenDescLoading(true);
                       try {
-                        const res = await generateProductDescription(form.name);
-                        setForm((prev) => ({ ...prev, description: res }));
+                        const description = await generateProductDescription(form.name);
+                        setForm((prev) => ({ ...prev, description }));
+                      } catch {
+                        setForm((prev) => ({ ...prev, description: "Failed to generate description." }));
+                      } finally {
+                        setGenDescLoading(false);
                       }
-                      catch { setForm((prev) => ({ ...prev, description: "Failed to generate description." })); }
-                      finally { setGenDescLoading(false); }
                     }}
-                    style={{ backgroundColor: genDescLoading || !form.name ? "#e5e7eb" : "#f9fafb", color: genDescLoading || !form.name ? "#9ca3af" : "#374151", border: "1px solid #e5e7eb", padding: "9px 18px", cursor: genDescLoading || !form.name ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "12px", borderRadius: "8px" }}
                   >
                     {genDescLoading ? "Generating..." : "Generate description with AI"}
-                  </button>
-                  <button type="submit" style={{ backgroundColor: "#111", color: "#fff", border: "none", padding: "9px 24px", cursor: "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "8px" }}>Create</button>
+                  </Button>
+                  <Button type="submit" disabled={createLoading}>
+                    {createLoading ? "Creating..." : "Create"}
+                  </Button>
                 </div>
               </form>
-            )}
+            </Card>
+          )}
 
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "10px", overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 60px 120px 180px", padding: "12px 16px", backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+          <Card style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: "900px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: PRODUCT_GRID,
+                  gap: "12px",
+                  padding: "12px 16px",
+                  backgroundColor: color.surface,
+                  borderBottom: `1px solid ${color.borderSoft}`,
+                }}
+              >
                 {["ID", "Img", "Name", "Price", "Color", "Stock", "Status", "Actions"].map((h) => (
-                  <span key={h} style={{ color: "#9ca3af", fontSize: "12px", fontWeight: "600" }}>{h}</span>
+                  <span key={h} style={{ color: color.textDim, fontSize: "10px", fontWeight: "700", letterSpacing: "2px", textTransform: "uppercase" }}>
+                    {h}
+                  </span>
                 ))}
               </div>
-              {visibleProducts.length === 0 && <div style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}>No products</div>}
+
+              {visibleProducts.length === 0 && (
+                <p style={{ textAlign: "center", padding: "40px", color: color.textDim, fontSize: "14px" }}>No products</p>
+              )}
+
               {visibleProducts.map((product) => (
                 <div key={product.id}>
-                  <div style={{ display: "grid", gridTemplateColumns: "48px 56px 1fr 100px 72px 60px 120px 180px", padding: "10px 16px", borderBottom: editProductId === product.id ? "none" : "1px solid #f3f4f6", alignItems: "center", backgroundColor: editProductId === product.id ? "#f9fafb" : "#fff" }}>
-                    <span style={{ color: "#9ca3af", fontSize: "13px" }}>#{product.id}</span>
-                    <div style={{ width: "36px", height: "36px", borderRadius: "6px", overflow: "hidden", backgroundColor: "#f3f4f6" }}>
-                      {product.image_url ? <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", backgroundColor: product.color }} />}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: PRODUCT_GRID,
+                      gap: "12px",
+                      padding: "10px 16px",
+                      borderBottom: editProductId === product.id ? "none" : `1px solid ${color.borderSoft}`,
+                      alignItems: "center",
+                      backgroundColor: editProductId === product.id ? color.surface : "transparent",
+                    }}
+                  >
+                    <span style={{ color: color.textFaint, fontSize: "12px" }}>#{product.id}</span>
+                    <div style={{ width: "36px", height: "36px", borderRadius: radius.sm, overflow: "hidden", backgroundColor: color.surfaceInset }}>
+                      {product.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ width: "100%", height: "100%", backgroundColor: product.color }} />
+                      )}
                     </div>
-                    <span style={{ fontSize: "14px", fontWeight: "600" }}>{product.name}</span>
+                    <span style={{ fontSize: "14px", fontWeight: "600", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{product.name}</span>
                     <span style={{ fontSize: "13px" }}>${product.price}</span>
-                    <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: product.color, border: "2px solid #e5e7eb" }} />
-                    <span style={{ fontSize: "13px", color: product.quantity === 0 ? "#dc2626" : "#16a34a", fontWeight: "600" }}>{product.quantity}</span>
-                    <span style={{ display: "inline-block", backgroundColor: PRODUCT_STATUS_BG[product.status] || "#f3f4f6", color: PRODUCT_STATUS_COLOR[product.status] || "#6b7280", padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: "600", textTransform: "capitalize", width: "fit-content" }}>
-                      {product.status}
+                    <div style={{ width: "20px", height: "20px", borderRadius: radius.circle, backgroundColor: product.color, border: `1px solid ${color.border}` }} />
+                    <span style={{ fontSize: "13px", color: product.quantity === 0 ? color.danger : color.success, fontWeight: "700" }}>
+                      {product.quantity}
                     </span>
+                    <Badge tint={statusColor[product.status]}>{product.status}</Badge>
                     <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
-                      <button onClick={() => editProductId === product.id ? setEditProductId(null) : startEdit(product)} style={{ backgroundColor: editProductId === product.id ? "#f3f4f6" : "#eff6ff", color: editProductId === product.id ? "#6b7280" : "#2563eb", border: "1px solid " + (editProductId === product.id ? "#e5e7eb" : "#bfdbfe"), padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => (editProductId === product.id ? setEditProductId(null) : startEdit(product))}
+                      >
                         {editProductId === product.id ? "Cancel" : "Edit"}
-                      </button>
-                      {product.status !== "accept" && <button onClick={() => handleModerate(product.id, "accept")} style={{ backgroundColor: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>✓</button>}
-                      {product.status !== "rejected" && <button onClick={() => handleModerate(product.id, "rejected")} style={{ backgroundColor: "#fffbeb", color: "#d97706", border: "1px solid #fde68a", padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>✗</button>}
-                      <button onClick={() => handleDelete(product.id)} style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", padding: "4px 10px", cursor: "pointer", fontSize: "11px", borderRadius: "6px", fontWeight: "600" }}>Del</button>
+                      </Button>
+                      {product.status !== "accept" && (
+                        <Button size="sm" variant="success" onClick={() => handleModerate(product.id, "accept")} aria-label="Accept">
+                          ✓
+                        </Button>
+                      )}
+                      {product.status !== "rejected" && (
+                        <Button size="sm" variant="warning" onClick={() => handleModerate(product.id, "rejected")} aria-label="Reject">
+                          ✗
+                        </Button>
+                      )}
+                      <Button size="sm" variant="danger" onClick={() => handleDelete(product.id)}>
+                        Del
+                      </Button>
                     </div>
                   </div>
 
                   {editProductId === product.id && (
-                    <form onSubmit={handleEditSave} style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", backgroundColor: "#f9fafb" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 80px 1fr", gap: "12px", alignItems: "end" }}>
-                        <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Name</label><input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required style={inputStyle} /></div>
-                        <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Image URL</label><input type="url" value={editForm.image_url} onChange={(e) => setEditForm({ ...editForm, image_url: e.target.value })} placeholder="https://..." style={inputStyle} /></div>
-                        <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Price ($)</label><input type="number" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} required min="0" step="0.01" style={inputStyle} /></div>
-                        <div><label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Stock</label><input type="number" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })} min="0" style={inputStyle} /></div>
-                        <div>
-                          <label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Color</label>
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            <input type="color" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} style={{ width: "36px", height: "34px", border: "1px solid #e5e7eb", borderRadius: "6px", cursor: "pointer", padding: "2px" }} />
-                            <input type="text" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ marginTop: "12px" }}>
-                        <label style={{ display: "block", color: "#374151", fontSize: "12px", fontWeight: "500", marginBottom: "5px" }}>Category</label>
-                        <select value={editForm.category_id} onChange={(e) => setEditForm({ ...editForm, category_id: e.target.value })} style={{ ...inputStyle }}>
+                    <form
+                      noValidate
+                      onSubmit={editFields.onSubmit(handleEditSave)}
+                      style={{ padding: "16px 20px", borderBottom: `1px solid ${color.borderSoft}`, backgroundColor: color.surface }}
+                    >
+                      <ProductFieldsGrid
+                        form={editForm}
+                        errors={editFields.errors}
+                        onChange={(patch) => {
+                          setEditForm((prev) => ({ ...prev, ...patch }));
+                          Object.keys(patch).forEach(editFields.clear);
+                        }}
+                      />
+
+                      <Field label="Category" style={{ marginTop: "12px", maxWidth: "300px" }}>
+                        <Select
+                          value={editForm.category_id}
+                          onChange={(e) => setEditForm({ ...editForm, category_id: e.target.value })}
+                          style={{ padding: "9px 12px", fontSize: "13px" }}
+                        >
                           <option value="">— No category —</option>
                           {categories.map((cat) => (
-                            <option key={cat.id} value={String(cat.id)}>{cat.name}</option>
+                            <option key={cat.id} value={String(cat.id)}>
+                              {cat.name}
+                            </option>
                           ))}
-                        </select>
-                      </div>
+                        </Select>
+                      </Field>
+
                       <div style={{ marginTop: "14px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-                        <button type="button" onClick={() => setEditProductId(null)} style={{ background: "none", border: "1px solid #e5e7eb", color: "#6b7280", padding: "8px 18px", cursor: "pointer", fontSize: "13px", borderRadius: "6px" }}>Cancel</button>
-                        <button type="submit" disabled={editLoading} style={{ backgroundColor: editLoading ? "#e5e7eb" : "#111", color: editLoading ? "#9ca3af" : "#fff", border: "none", padding: "8px 20px", cursor: editLoading ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px", borderRadius: "6px" }}>
+                        <Button type="button" variant="secondary" onClick={() => setEditProductId(null)}>
+                          Cancel
+                        </Button>
+                        <Button type="submit" disabled={editLoading}>
                           {editLoading ? "Saving..." : "Save changes"}
-                        </button>
+                        </Button>
                       </div>
                     </form>
                   )}
                 </div>
               ))}
             </div>
+          </Card>
+        </div>
+      )}
+
+      {tab === "orders" && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "24px" }}>
+            <StatCard label="Active" value={orderCounts.create} tint={statusColor.create} />
+            <StatCard label="Completed" value={orderCounts.completed} tint={statusColor.completed} />
+            <StatCard label="Cancelled" value={orderCounts.cancelled} tint={statusColor.cancelled} />
           </div>
-        )}
-      </main>
-    </div>
+
+          <Card style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: "760px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: ORDER_GRID,
+                  gap: "12px",
+                  padding: "12px 20px",
+                  backgroundColor: color.surface,
+                  borderBottom: `1px solid ${color.borderSoft}`,
+                }}
+              >
+                {["ID", "Title", "Client", "Status", "Actions"].map((h) => (
+                  <span key={h} style={{ color: color.textDim, fontSize: "10px", fontWeight: "700", letterSpacing: "2px", textTransform: "uppercase" }}>
+                    {h}
+                  </span>
+                ))}
+              </div>
+
+              {orders.length === 0 && (
+                <p style={{ textAlign: "center", padding: "40px", color: color.textDim, fontSize: "14px" }}>No orders</p>
+              )}
+
+              {orders.map((order, i) => (
+                <div
+                  key={order.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: ORDER_GRID,
+                    gap: "12px",
+                    padding: "14px 20px",
+                    borderBottom: i < orders.length - 1 ? `1px solid ${color.borderSoft}` : "none",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ color: color.textFaint, fontSize: "12px" }}>#{order.id}</span>
+                  <span style={{ fontSize: "14px", fontWeight: "600", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{order.title}</span>
+                  <span style={{ color: color.textDim, fontSize: "13px" }}>Client #{order.client_id}</span>
+                  <Badge tint={statusColor[order.status]}>{order.status}</Badge>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    {order.status === "create" && (
+                      <>
+                        <Button size="sm" variant="success" onClick={() => handleOrderStatus(order.id, "completed")}>
+                          Complete
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => handleOrderStatus(order.id, "cancelled")}>
+                          Cancel
+                        </Button>
+                      </>
+                    )}
+                    {order.status === "completed" && (
+                      <Button size="sm" variant="danger" onClick={() => handleOrderStatus(order.id, "cancelled")}>
+                        Refund
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {tab === "categories" && (
+        <div style={{ maxWidth: "600px" }}>
+          <Card style={{ padding: "24px", marginBottom: "20px" }}>
+            <form noValidate onSubmit={catFields.onSubmit(handleCreateCategory)}>
+              <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: color.textDim, marginBottom: "14px" }}>
+                New category
+              </p>
+              {catError && <Alert style={{ marginBottom: "12px" }}>{catError}</Alert>}
+              <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    name="name"
+                    type="text"
+                    value={catName}
+                    onChange={(e) => {
+                      setCatName(e.target.value);
+                      catFields.clear("name");
+                    }}
+                    required
+                    placeholder="Enter the category name"
+                    style={{ padding: "9px 12px", fontSize: "13px" }}
+                    aria-invalid={catFields.errors.name ? true : undefined}
+                  />
+                  {catFields.errors.name && <FieldError>{catFields.errors.name}</FieldError>}
+                </div>
+                <Button type="submit" disabled={catLoading}>
+                  {catLoading ? "Adding..." : "+ Add"}
+                </Button>
+              </div>
+            </form>
+          </Card>
+
+          <Card style={{ overflow: "hidden" }}>
+            <div style={{ padding: "12px 20px", backgroundColor: color.surface, borderBottom: `1px solid ${color.borderSoft}` }}>
+              <span style={{ color: color.textDim, fontSize: "10px", fontWeight: "700", letterSpacing: "2px" }}>
+                CATEGORIES ({categories.length})
+              </span>
+            </div>
+            {categories.length === 0 ? (
+              <p style={{ textAlign: "center", padding: "40px", color: color.textDim, fontSize: "14px" }}>No categories yet</p>
+            ) : (
+              categories.map((cat, i) => (
+                <div
+                  key={cat.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "14px 20px",
+                    borderBottom: i < categories.length - 1 ? `1px solid ${color.borderSoft}` : "none",
+                  }}
+                >
+                  <span style={{ fontSize: "14px", fontWeight: "500" }}>{cat.name}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={{ color: color.textFaint, fontSize: "12px" }}>#{cat.id}</span>
+                    <Button size="sm" variant="danger" onClick={() => handleDeleteCategory(cat.id)}>
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </Card>
+        </div>
+      )}
+
+      {tab === "stats" && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "24px" }}>
+            <StatCard label="Total products" value={products.length} />
+            <StatCard label="Total orders" value={orders.length} />
+            <StatCard label="Total clients" value={clients.length} />
+            <StatCard
+              label="Pending review"
+              value={productCounts.pending}
+              tint={productCounts.pending > 0 ? color.warning : undefined}
+            />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px", marginBottom: "24px" }}>
+            {[
+              {
+                title: "Products by status",
+                items: [
+                  { label: "Accepted", value: productCounts.accept, tint: color.success },
+                  { label: "Pending", value: productCounts.pending, tint: color.warning },
+                  { label: "Rejected", value: productCounts.rejected, tint: color.danger },
+                ],
+              },
+              {
+                title: "Orders by status",
+                items: [
+                  { label: "Active", value: orderCounts.create, tint: color.warning },
+                  { label: "Completed", value: orderCounts.completed, tint: color.success },
+                  { label: "Cancelled", value: orderCounts.cancelled, tint: color.danger },
+                ],
+              },
+              {
+                title: "Clients by role",
+                items: [
+                  { label: "Client", value: clients.filter((c) => (c.role ?? "client") === "client").length, tint: color.textMuted },
+                  { label: "Moderator", value: clients.filter((c) => c.role === "moderator").length, tint: color.info },
+                  { label: "Superadmin", value: clients.filter((c) => c.role === "superadmin").length, tint: color.violet },
+                ],
+              },
+            ].map((card) => (
+              <Card key={card.title} style={{ padding: "20px 24px" }}>
+                <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: color.textDim, marginBottom: "16px" }}>
+                  {card.title}
+                </p>
+                {card.items.map((item) => (
+                  <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${color.borderSoft}` }}>
+                    <span style={{ color: color.textDim, fontSize: "13px" }}>{item.label}</span>
+                    <span style={{ color: item.tint, fontSize: "18px", fontWeight: "800" }}>{item.value}</span>
+                  </div>
+                ))}
+              </Card>
+            ))}
+          </div>
+
+          <Card style={{ padding: "24px", overflowX: "auto" }}>
+            <p style={{ fontSize: "10px", letterSpacing: "2px", textTransform: "uppercase", color: color.textDim, marginBottom: "16px" }}>
+              Recent clients
+            </p>
+            <div style={{ minWidth: "620px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "56px minmax(0, 1fr) minmax(0, 1fr) 100px 110px", gap: "12px", padding: "8px 0 12px", borderBottom: `1px solid ${color.borderSoft}` }}>
+                {["ID", "Name", "Email", "Balance", "Role"].map((h) => (
+                  <span key={h} style={{ color: color.textDim, fontSize: "10px", fontWeight: "700", letterSpacing: "2px", textTransform: "uppercase" }}>
+                    {h}
+                  </span>
+                ))}
+              </div>
+              {clients.slice(0, 10).map((c) => (
+                <div key={c.id} style={{ display: "grid", gridTemplateColumns: "56px minmax(0, 1fr) minmax(0, 1fr) 100px 110px", gap: "12px", padding: "12px 0", borderBottom: `1px solid ${color.borderSoft}`, alignItems: "center" }}>
+                  <span style={{ color: color.textFaint, fontSize: "12px" }}>#{c.id}</span>
+                  <span style={{ fontSize: "13px", fontWeight: "600", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</span>
+                  <span style={{ color: color.textDim, fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis" }}>{c.email}</span>
+                  <span style={{ fontSize: "13px", fontWeight: "600" }}>${c.balance.toFixed(2)}</span>
+                  <span style={{ color: color.textDim, fontSize: "12px", textTransform: "capitalize" }}>{c.role ?? "client"}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+    </Page>
   );
 }
