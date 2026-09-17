@@ -1,8 +1,8 @@
 import { notifyAuthChange } from "@/lib/useAuth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://bohdan-shop.duckdns.org/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "https://bohdan-shop.duckdns.org";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:8000";
 
 export interface Category {
   id: number;

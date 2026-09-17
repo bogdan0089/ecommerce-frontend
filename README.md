@@ -3,7 +3,6 @@
 **Modern e-commerce storefront** built with Next.js 16, React 19 and TypeScript.  
 Connected to a [FastAPI backend](https://github.com/bogdan0089/fastapi-ecommerce-backend) — full API reference available there.
 
-**Live demo:** https://bohdan-shop.duckdns.org  
 **Backend repo:** https://github.com/bogdan0089/fastapi-ecommerce-backend
 
 ---
@@ -16,8 +15,8 @@ Connected to a [FastAPI backend](https://github.com/bogdan0089/fastapi-ecommerce
 - Design tokens in `lib/theme.ts`, shared components in `components/` — styles are
   written inline, but no page holds a raw colour value
 - Tailwind is installed and imported by `globals.css`; it is not used for layout
-- PM2 — production process manager
-- Nginx + Let's Encrypt SSL — reverse proxy
+- Docker — standalone Next server in a two-stage image
+- Caddy — reverse proxy with automatic HTTPS
 
 ---
 
@@ -39,12 +38,12 @@ NEXT_PUBLIC_WS_URL=http://localhost:8000
 NEXT_PUBLIC_STRIPE_KEY=pk_test_...
 ```
 
-All three fall back to the deployed values when unset, so a plain `npm run dev` talks
-to production. Set them.
+Unset, all three fall back to a local backend on port 8000, so a fresh clone runs
+against your own stack and never against someone else's server.
 
-`NEXT_PUBLIC_WS_URL` is deliberately separate from `NEXT_PUBLIC_API_URL`: in production
-nginx serves HTTP under `/api` but proxies `/ws` straight to the backend, so the two
-bases differ there. Locally both are `http://localhost:8000`.
+`NEXT_PUBLIC_WS_URL` is deliberately separate from `NEXT_PUBLIC_API_URL`: behind a
+proxy that serves HTTP under `/api` and passes `/ws` straight through, the two bases
+differ. Locally both are `http://localhost:8000`.
 
 **3. Run**
 ```bash
@@ -157,6 +156,28 @@ lib/
 ├── cart.ts                        # Cart store over localStorage
 ├── useAuth.ts                     # Login state store
 └── formErrors.ts                  # Inline validation
+```
+
+---
+
+## Deployment
+
+```bash
+docker build   --build-arg NEXT_PUBLIC_API_URL=https://shop-api.example.org   --build-arg NEXT_PUBLIC_WS_URL=https://shop-api.example.org   --build-arg NEXT_PUBLIC_STRIPE_KEY=pk_test_...   -t ecommerce-frontend .
+
+docker run -d --restart always -p 127.0.0.1:3000:3000 ecommerce-frontend
+```
+
+The `NEXT_PUBLIC_*` values are build arguments, not runtime variables — Next inlines
+them into the browser bundle while building, so pointing the storefront at a different
+API means rebuilding the image.
+
+The container binds to loopback; a proxy on the host terminates TLS:
+
+```caddy
+shop.example.org {
+    reverse_proxy 127.0.0.1:3000
+}
 ```
 
 ---
