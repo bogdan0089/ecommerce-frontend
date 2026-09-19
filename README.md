@@ -3,7 +3,10 @@
 **Modern e-commerce storefront** built with Next.js 16, React 19 and TypeScript.  
 Connected to a [FastAPI backend](https://github.com/bogdan0089/fastapi-ecommerce-backend) — full API reference available there.
 
-**Backend repo:** https://github.com/bogdan0089/fastapi-ecommerce-backend
+**▶ Live store:** https://shop.bondanweb.duckdns.org — Stripe test card `4242 4242 4242 4242`
+**Backend repo:** https://github.com/bogdan0089/fastapi-ecommerce-backend · [live API docs](https://shop-api.bondanweb.duckdns.org/docs)
+
+![Landing page](docs/screenshots/landing.png)
 
 ---
 
@@ -15,7 +18,7 @@ Connected to a [FastAPI backend](https://github.com/bogdan0089/fastapi-ecommerce
 - Design tokens in `lib/theme.ts`, shared components in `components/` — styles are
   written inline, but no page holds a raw colour value
 - Tailwind is installed and imported by `globals.css`; it is not used for layout
-- Docker — standalone Next server in a two-stage image
+- Docker — standalone Next server (`output: "standalone"`): the image carries the server and only the packages it imports
 - Caddy — reverse proxy with automatic HTTPS
 
 ---
@@ -78,7 +81,7 @@ on every push and pull request to `main` and `dev`.
 | `/forgot-password` | Request password reset |
 | `/reset-password` | Reset password via token |
 | `/auth/verify/[token]` | Email verification |
-| `/products` | Catalog with search, category filter, price slider, AI search |
+| `/products` | Catalog with search, category filter, price slider; AI search once signed in |
 | `/products/[id]` | Product detail page |
 | `/cart` | Shopping cart (localStorage) |
 | `/checkout` | Order checkout |
@@ -99,7 +102,7 @@ on every push and pull request to `main` and `dev`.
 
 **Products**
 - Catalog with search by name, category filter and a max-price slider
-- AI search that answers in plain language
+- AI search by description for signed-in users ("something quiet for the office")
 - Product detail page with colour, stock and quantity selector
 - Cart in localStorage, shared through one store so the header count is always live
 
@@ -163,7 +166,11 @@ lib/
 ## Deployment
 
 ```bash
-docker build   --build-arg NEXT_PUBLIC_API_URL=https://shop-api.example.org   --build-arg NEXT_PUBLIC_WS_URL=https://shop-api.example.org   --build-arg NEXT_PUBLIC_STRIPE_KEY=pk_test_...   -t ecommerce-frontend .
+docker build \
+  --build-arg NEXT_PUBLIC_API_URL=https://shop-api.example.org \
+  --build-arg NEXT_PUBLIC_WS_URL=https://shop-api.example.org \
+  --build-arg NEXT_PUBLIC_STRIPE_KEY=pk_test_... \
+  -t ecommerce-frontend .
 
 docker run -d --restart always -p 127.0.0.1:3000:3000 ecommerce-frontend
 ```
